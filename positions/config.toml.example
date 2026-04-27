@@ -1,0 +1,30 @@
+# Copy this file to config.toml and fill in your details.
+# config.toml is gitignored — your sheet IDs and file paths will never be committed.
+#
+# Add one [[accounts]] entry per brokerage account. Each entry needs:
+#   brokerage — which parser to use (schwab, robinhood)
+#   sheet_id  — the Google Sheets ID for that account's spreadsheet
+#   csv       — path to the exported transaction CSV (relative to repo root, or absolute)
+
+[[accounts]]
+brokerage = "schwab"
+sheet_id  = "your-sheet-id-here"
+csv       = "ALL_TRANS.csv"
+
+# Multiple accounts for the same brokerage — just add another entry:
+# [[accounts]]
+# brokerage = "schwab"
+# sheet_id  = "your-ira-sheet-id-here"
+# csv       = "ALL_TRANS_IRA.csv"
+
+# Other brokerages work the same way once supported:
+# [[accounts]]
+# brokerage = "robinhood"
+# sheet_id  = "your-robinhood-sheet-id-here"
+# csv       = "ALL_TRANS_ROBINHOOD.csv"
+
+# Optional: override default credential file paths.
+# Defaults shown — only uncomment if you need different paths.
+# [paths]
+# credentials = "~/.config/google-sheets-oauth.json"
+# token = "~/.config/google-sheets-token.json"

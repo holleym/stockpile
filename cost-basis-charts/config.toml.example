@@ -1,0 +1,23 @@
+# Copy this file to config.toml and fill in your details.
+# config.toml is gitignored — your file paths will never be committed.
+#
+# Add one [[accounts]] entry per brokerage account. Each entry needs:
+#   brokerage — which parser to use (schwab, robinhood)
+#   csv       — path to the exported transaction CSV (relative to repo root, or absolute)
+#
+# Optional per-account keys:
+#   symbols   — list of tickers to chart; omit to chart every symbol in the CSV
+
+[[accounts]]
+brokerage = "schwab"
+csv       = "ALL_TRANS.csv"
+# symbols = ["AMD", "NVDA", "TSLA"]
+
+# Multiple accounts or brokerages — just add another entry:
+# [[accounts]]
+# brokerage = "robinhood"
+# csv       = "robinhood_transactions.csv"
+
+# Output directory for generated HTML files (default: current directory).
+[output]
+dir = "charts"

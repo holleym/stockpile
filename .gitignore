@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Config and secrets
+config.toml
+*.json
+!config.toml.example
+
+# Brokerage CSV exports
+*.csv
+
+# Logs
+*.log
+
+# IDE
+.idea/
+.vscode/
+
+# Chart output
+charts/
+*.html
+
+# OS
+.DS_Store
+Thumbs.db

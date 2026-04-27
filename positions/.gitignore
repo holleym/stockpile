@@ -1,0 +1,17 @@
+# Transaction data — personal financial records
+*.csv
+
+# Claude Code local settings
+.claude/
+
+# Python cache
+__pycache__/
+
+# IDE
+.idea/
+
+# Local config — contains personal spreadsheet IDs
+config.toml
+
+# Runtime log
+tracker.log
