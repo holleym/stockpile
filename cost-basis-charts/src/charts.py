@@ -262,22 +262,22 @@ def create_cost_basis_chart(symbol: str, price_history, cost_basis_series: list,
         time_value = option_breakdown["time_value"]
         fig.add_trace(go.Scatter(
             x=intrinsic.index, y=intrinsic.values,
-            name="Option Intrinsic Value",
+            name="Intrinsic Value",
             line=dict(color=sc["intrinsic"], width=2),
             hovertemplate=(
                 "<b>%{x|%b %d, %Y}</b><br>"
                 "Intrinsic: $%{y:.2f}/shr"
-                "<extra>Option Intrinsic Value</extra>"
+                "<extra>Intrinsic Value</extra>"
             ),
         ))
         fig.add_trace(go.Scatter(
             x=time_value.index, y=time_value.values,
-            name="Option Time Value",
+            name="Time Value",
             line=dict(color=sc["time_value"], width=2, dash="dot"),
             hovertemplate=(
                 "<b>%{x|%b %d, %Y}</b><br>"
                 "Time Value: $%{y:.2f}/shr"
-                "<extra>Option Time Value</extra>"
+                "<extra>Time Value</extra>"
             ),
         ))
 

@@ -94,6 +94,19 @@ uv add plotly --project cost-basis-charts
 
 Then re-run `uv sync` to update the lockfile.
 
+## Using Claude Code with this repo
+
+The easiest way to get this running is with a Claude Code subscription.
+Clone the repo, open Claude Code in the `cost-basis-charts` directory,
+and ask it to help you configure and run the charts with your own
+brokerage export. It can walk you through setup, fix any issues, and
+add new features — no manual coding required.
+
+Get Claude Code at: https://claude.ai/code
+
+Subscriptions start at $20/month (Pro plan). The Max plan ($100/month)
+gives higher usage limits, which is useful for longer coding sessions.
+
 ## Notes
 
 - Considering renaming this repo from `stockpile` → `position_clarity` in the future.

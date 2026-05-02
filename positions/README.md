@@ -88,11 +88,16 @@ the spreadsheet and rebuilds everything from scratch.
 
 ## Usage
 
+Run from the **parent `stockpile/` directory** using `uv run`:
+
 ```
-python run_tracker.py                   # run all configured accounts
-python run_tracker.py --brokerage schwab  # run only Schwab accounts
-python run_tracker.py --csv OTHER.csv --brokerage schwab  # override CSV path
+uv run positions/run_tracker.py                              # run all configured accounts
+uv run positions/run_tracker.py --brokerage schwab           # run only Schwab accounts
+uv run positions/run_tracker.py --csv input/OTHER.csv        # override CSV path
+uv run positions/run_tracker.py --brokerage schwab --csv input/OTHER.csv
 ```
+
+`uv run` picks up the workspace virtualenv and the `stocks-shared` dependency automatically.
 
 ---
 

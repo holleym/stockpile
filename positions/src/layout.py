@@ -3,8 +3,7 @@
 import re
 from datetime import datetime
 
-TXN_ROW = 39  # first data row of the transaction log (1-indexed)
-T = TXN_ROW   # shorthand used inside build_sections formulas
+TXN_ROW = 39  # default transaction data start row (used for inconsistent tabs)
 
 
 def date_to_formula(exp_str):
@@ -25,12 +24,39 @@ def shorten_symbol(symbol):
     return f"{strike}{typ} {m.group(1)}/{m.group(2)[2:]}"
 
 
+def build_txn_only_sections(last_row):
+    """Minimal layout for Inconsistent positions: just the transaction log."""
+    return {
+        f"A{TXN_ROW-2}:K{TXN_ROW-1}": [
+            ["TRANSACTION LOG", "", "", "", "", "", "", "", "", "", ""],
+            ["Date", "Action", "Type", "Symbol", "Strike", "Expiration",
+             "Qty", "Price", "Fees", "Net Amount", "Notes"],
+        ],
+    }
+
+
 def build_sections(ticker, open_positions, last_row, avg_held_anchor=None,
-                   brokerage="", status="Consistent", closed_avg_days=None):
+                   brokerage="", status="Consistent", closed_avg_days=None,
+                   show_calls=True, show_puts=True):
     """Return a dict of {range_str: 2d_array} for all calculated sections."""
 
     L = last_row  # last transaction row — bound SUMPRODUCT ranges here so
                   # footnote text below the log can't poison DAYS()/DATEVALUE
+
+    # Dynamic row starts based on which sections are present
+    # Call sections always at row 10 when shown; put sections follow calls; income follows puts
+    p = 19 if show_calls else 10  # put section start (1-indexed)
+    if show_puts:
+        i = p + 9   # income start (8 put rows + 1 blank)
+    elif show_calls:
+        i = 19      # income right after blank row following calls
+    else:
+        i = 10      # income starts at top
+
+    # Transaction log: 1 blank row after P&L BREAKDOWN (tallest, ends at i+5)
+    # txn_row - 2 = TXN LOG header, txn_row - 1 = column headers, txn_row = data start
+    txn_row = i + 9
+    T = txn_row   # shorthand for SUMPRODUCT formula ranges
 
     if status == "Closed" and closed_avg_days is not None:
         avg_days_formula = str(closed_avg_days)
@@ -87,7 +113,7 @@ def build_sections(ticker, open_positions, last_row, avg_held_anchor=None,
         op_status = ""
         op_open_date = op_open_date_f = op_open_date_cell = op_days_open = op_price_at_open = ""
 
-    return {
+    sections = {
         "A1:C1": [[ticker, "Status", status]],
 
         "A3:B8": [
@@ -103,7 +129,7 @@ def build_sections(ticker, open_positions, last_row, avg_held_anchor=None,
             ["STOCK POSITION", ""],
             ["Shares Held",
              f"=SUMPRODUCT((C${T}:C${L}=\"Stock\")*(B${T}:B${L}=\"Buy\")*G${T}:G${L})"
-             f"-SUMPRODUCT((C${T}:C${L}=\"Stock\")*(B${T}:B${L}=\"Sell\")*G${T}:G${L})"],
+             f"+SUMPRODUCT((C${T}:C${L}=\"Stock\")*(B${T}:B${L}=\"Sell\")*G${T}:G${L})"],
             ["Avg Cost / Share",
              f"=IFERROR(-(SUMPRODUCT((C${T}:C${L}=\"Stock\")*(B${T}:B${L}=\"Buy\")*J${T}:J${L})+SUMPRODUCT((C${T}:C${L}=\"Stock\")*(B${T}:B${L}=\"Sell\")*J${T}:J${L}))/E4,0)"],
             ["Market Value", "=E4*B5"],
@@ -124,109 +150,111 @@ def build_sections(ticker, open_positions, last_row, avg_held_anchor=None,
             ["Ann Gain %", "=IFERROR(H5*(365/H7),0)"],
         ],
 
-        "A10:B15": [
-            ["CALL HISTORY STATS", ""],
-            ["Call Premium Received",
-             f"=SUMPRODUCT((C${T}:C${L}=\"Call\")*(J${T}:J${L}>0)*J${T}:J${L})"],
-            ["Call Premium Paid",
-             f"=SUMPRODUCT((C${T}:C${L}=\"Call\")*(J${T}:J${L}<0)*J${T}:J${L})"],
-            ["Net Call Premium (all time)",
-             f"=SUMPRODUCT((C${T}:C${L}=\"Call\")*J${T}:J${L})"],
-            ["Calls Market Value", "=B7"],
-            ["Covered Call Results", "=B13+B14"],
-        ],
-
-        "D10:E17": [
-            ["OPEN CALLS", ""],
-            ["Strike", oc_strike],
-            ["Expiration", oc_exp],
-            ["Date Opened", oc_open_date_cell],
-            ["Days Open", oc_days_open],
-            ["Stock Price at Open", oc_price_at_open],
-            ["Days Left", f"=DAYS({oc_df},TODAY())" if itm else ""],
-            ["Contracts", oc_cts],
-        ],
-
-        "G10:H17": [
-            ["OPEN CALL METRICS", ""],
-            ["Premium Received", oc_prem],
-            ["Cost to Close", "=B7" if itm else ""],
-            ["Unrealized P&L", "=H11+H12" if itm else ""],
-            ["Status", oc_status],
-            ["Intrinsic Value", f"=MAX(0,B5-{itm_strike})*E17*100" if itm_strike != "" else ""],
-            ["Time Value", "=H12-H15" if itm else ""],
-            ["** TV Ann Yield", "=IFERROR(MAX(0,-H16)/(-E17*100*B5+B7)*(365/E16),0)" if itm else ""],
-        ],
-
-        # Row 18: blank between call and put sections
-
-        "A19:B24": [
-            ["PUT HISTORY STATS", ""],
-            ["Put Premium Received",
-             f"=SUMPRODUCT((C${T}:C${L}=\"Put\")*(J${T}:J${L}>0)*J${T}:J${L})"],
-            ["Put Premium Paid",
-             f"=SUMPRODUCT((C${T}:C${L}=\"Put\")*(J${T}:J${L}<0)*J${T}:J${L})"],
-            ["Net Put Premium (all time)",
-             f"=SUMPRODUCT((C${T}:C${L}=\"Put\")*J${T}:J${L})"],
-            ["Puts Market Value", "=B8"],
-            ["Put Results", "=B22+B23"],
-        ],
-
-        "D19:E26": [
-            ["OPEN PUTS", ""],
-            ["Strike", op_strike],
-            ["Expiration", op_exp],
-            ["Date Opened", op_open_date_cell],
-            ["Days Open", op_days_open],
-            ["Stock Price at Open", op_price_at_open],
-            ["Days Left", f"=DAYS({op_df},TODAY())" if op else ""],
-            ["Contracts", op_cts],
-        ],
-
-        "G19:H26": [
-            ["OPEN PUTS METRICS", ""],
-            ["Premium Received", op_prem],
-            ["Cost to Close", "=B8" if op else ""],
-            ["Unrealized P&L", "=H20+H21" if op else ""],
-            ["Status", op_status],
-            ["Intrinsic Value", f"=MAX(0,{op_strike}-B5)*E26*100" if op else ""],
-            ["Time Value", "=H21-H24" if op else ""],
-            ["TV Ann Yield", "=IFERROR(IF(E25>0,MAX(0,-H25)/(-E26*100*E20)*(365/E25),0),0)" if op else ""],
-        ],
-
-        # Row 27: blank between put sections and summary sections
-
-        "A28:B32": [
+        f"A{i}:B{i+4}": [
             ["INCOME", ""],
             ["Total Dividends", f"=SUMPRODUCT((C${T}:C${L}=\"Dividend\")*J${T}:J${L})"],
             ["Dividend Count", f"=COUNTIF(C${T}:C${L},\"Dividend\")"],
-            ["Net Call Premium (all time)", "=B13"],
-            ["Net Put Premium (all time)", "=B22"],
+            ["Net Call Premium (all time)", "=B13" if show_calls else ""],
+            ["Net Put Premium (all time)", f"=B{p+3}" if show_puts else ""],
         ],
 
-        "D28:E33": [
+        f"D{i}:E{i+5}": [
             ["P&L BREAKDOWN", ""],
             ["Stock Gain", "=H4"],
-            ["Covered Call Results", "=B15"],
-            ["Put Results", "=B24"],
-            ["Dividends", "=B29"],
-            ["Total P&L", "=E29+E30+E31+E32"],
+            ["Covered Call Results", "=B15" if show_calls else ""],
+            ["Put Results", f"=B{p+5}" if show_puts else ""],
+            ["Dividends", f"=B{i+1}"],
+            ["Total P&L", f"=E{i+1}+E{i+2}+E{i+3}+E{i+4}"],
         ],
 
-        "G28:H31": [
+        f"G{i}:H{i+3}": [
             ["RETURNS", ""],
             ["Close-out Value",
              f"=SUMPRODUCT((C${T}:C${L}=\"Stock\")*(B${T}:B${L}=\"Sell\")*J${T}:J${L})"
              if status == "Closed" else "=E6+B7+B8"],
             ["Ann Yield on Invested Capital",
-             f"=IFERROR(E33/(-SUMPRODUCT((C${T}:C${L}=\"Stock\")*(B${T}:B${L}=\"Buy\")*J${T}:J${L}))*(365/H7),0)"
-             if status == "Closed" else "=IFERROR(-E33/E7*(365/H7),0)"],
-            ["Ann Yield on Close-out Value", "=IFERROR(E33/H29*(365/H7),0)"],
+             f"=IFERROR(E{i+5}/(-SUMPRODUCT((C${T}:C${L}=\"Stock\")*(B${T}:B${L}=\"Buy\")*J${T}:J${L}))*(365/H7),0)"
+             if status == "Closed" else f"=IFERROR(-E{i+5}/E7*(365/H7),0)"],
+            [f"Ann Yield on Close-out Value", f"=IFERROR(E{i+5}/H{i+1}*(365/H7),0)"],
         ],
 
-        f"A{TXN_ROW-2}:K{TXN_ROW-1}": [
+        f"A{txn_row-2}:K{txn_row-1}": [
             ["TRANSACTION LOG", "", "", "", "", "", "", "", "", "", ""],
             ["Date", "Action", "Type", "Symbol", "Strike", "Expiration",
              "Qty", "Price", "Fees", "Net Amount", "Notes"],
         ],
     }
+
+    if show_calls:
+        sections.update({
+            "A10:B15": [
+                ["CALL HISTORY STATS", ""],
+                ["Call Premium Received",
+                 f"=SUMPRODUCT((C${T}:C${L}=\"Call\")*(J${T}:J${L}>0)*J${T}:J${L})"],
+                ["Call Premium Paid",
+                 f"=SUMPRODUCT((C${T}:C${L}=\"Call\")*(J${T}:J${L}<0)*J${T}:J${L})"],
+                ["Net Call Premium (all time)",
+                 f"=SUMPRODUCT((C${T}:C${L}=\"Call\")*J${T}:J${L})"],
+                ["Calls Market Value", "=B7"],
+                ["Covered Call Results", "=B13+B14"],
+            ],
+            "D10:E17": [
+                ["OPEN CALLS", ""],
+                ["Strike", oc_strike],
+                ["Expiration", oc_exp],
+                ["Date Opened", oc_open_date_cell],
+                ["Days Open", oc_days_open],
+                ["Stock Price at Open", oc_price_at_open],
+                ["Days Left", f"=DAYS({oc_df},TODAY())" if itm else ""],
+                ["Contracts", oc_cts],
+            ],
+            "G10:H17": [
+                ["OPEN CALL METRICS", ""],
+                ["Premium Received", oc_prem],
+                ["Cost to Close", "=B7" if itm else ""],
+                ["Unrealized P&L", "=H11+H12" if itm else ""],
+                ["Status", oc_status],
+                ["Intrinsic Value", f"=MAX(0,B5-{itm_strike})*E17*100" if itm_strike != "" else ""],
+                ["Time Value", "=H12-H15" if itm else ""],
+                ["** TV Ann Yield", "=IFERROR(MAX(0,-H16)/(-E17*100*B5+B7)*(365/E16),0)" if itm else ""],
+            ],
+        })
+
+    if show_puts:
+        sections.update({
+            f"A{p}:B{p+5}": [
+                ["PUT HISTORY STATS", ""],
+                ["Put Premium Received",
+                 f"=SUMPRODUCT((C${T}:C${L}=\"Put\")*(J${T}:J${L}>0)*J${T}:J${L})"],
+                ["Put Premium Paid",
+                 f"=SUMPRODUCT((C${T}:C${L}=\"Put\")*(J${T}:J${L}<0)*J${T}:J${L})"],
+                ["Net Put Premium (all time)",
+                 f"=SUMPRODUCT((C${T}:C${L}=\"Put\")*J${T}:J${L})"],
+                ["Puts Market Value", "=B8"],
+                ["Put Results", f"=B{p+3}+B{p+4}"],
+            ],
+            f"D{p}:E{p+7}": [
+                ["OPEN PUTS", ""],
+                ["Strike", op_strike],
+                ["Expiration", op_exp],
+                ["Date Opened", op_open_date_cell],
+                ["Days Open", op_days_open],
+                ["Stock Price at Open", op_price_at_open],
+                ["Days Left", f"=DAYS({op_df},TODAY())" if op else ""],
+                ["Contracts", op_cts],
+            ],
+            f"G{p}:H{p+7}": [
+                ["OPEN PUTS METRICS", ""],
+                ["Premium Received", op_prem],
+                ["Cost to Close", "=B8" if op else ""],
+                ["Unrealized P&L", f"=H{p+1}+H{p+2}" if op else ""],
+                ["Status", op_status],
+                ["Intrinsic Value", f"=MAX(0,{op_strike}-B5)*E{p+7}*100" if op else ""],
+                ["Time Value", f"=H{p+2}-H{p+5}" if op else ""],
+                ["TV Ann Yield",
+                 f"=IFERROR(IF(E{p+6}>0,MAX(0,-H{p+6})/(-E{p+7}*100*E{p+1})*(365/E{p+6}),0),0)"
+                 if op else ""],
+            ],
+        })
+
+    return sections

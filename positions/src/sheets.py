@@ -299,18 +299,22 @@ def _ensure_summary_tab(service, stab):
         apply_fmt(service, sid, [col_header(sid, 0)])
         return
 
+    # Column layout (0-indexed): A=Position, B=Stock Price, C=Mkt Val, D=Stock Gain,
+    # E=Open Calls MV, F=Strike calls, G=Days Left calls, H=TV Ann Yield calls, I=All Call Results,
+    # J=Open Puts MV, K=Strike puts, L=Days Left puts, M=TV Ann Yield puts, N=All Put Results,
+    # O=Dividends, P=Adj Cost Basis, Q=Close-out Value, R=Overall P/L
     group_row = ["Underlying Stock", "", "", "",
-                 "Calls", "", "",
-                 "Puts", "", "",
+                 "Calls", "", "", "", "",
+                 "Puts", "", "", "", "",
                  "Overall", "", "", ""]
-    write_range(service, stab, "A1:N1", [group_row])
+    write_range(service, stab, "A1:R1", [group_row])
     headers = ["Position", "Stock\nPrice",
                "Underlying\nMkt Val", "Underlying\nGain",
-               "Open\nCalls", "TV Ann\nYield", "All Call\nResults",
-               "Open\nPuts", "TV Ann\nYield", "All Put\nResults",
+               "Open\nCalls", "Strike", "Days\nLeft", "TV Ann\nYield", "All Call\nResults",
+               "Open\nPuts", "Strike", "Days\nLeft", "TV Ann\nYield", "All Put\nResults",
                "Dividends", "Adj Cost\nBasis",
                "Close-out\nValue", "Overall\nP/L"]
-    write_range(service, stab, "A2:N2", [headers])
+    write_range(service, stab, "A2:R2", [headers])
 
     def _gip(c1, c2):
         return {"addConditionalFormatRule": {"rule": {
@@ -321,21 +325,38 @@ def _ensure_summary_tab(service, stab):
                 "format": {"textFormat": {"foregroundColor": {"red": 0.05, "green": 0.45, "blue": 0.13}}},
             }}, "index": 0}}
 
+    def _near_money(col_letter, col_idx):
+        """Bold purple when strike is within 10% of the stock price in col B."""
+        return {"addConditionalFormatRule": {"rule": {
+            "ranges": [{"sheetId": sid, "startRowIndex": 2, "endRowIndex": 1000,
+                        "startColumnIndex": col_idx, "endColumnIndex": col_idx + 1}],
+            "booleanRule": {
+                "condition": {
+                    "type": "CUSTOM_FORMULA",
+                    "values": [{"userEnteredValue":
+                        f"=AND({col_letter}3<>\"\",$B3<>\"\",ABS({col_letter}3-$B3)/$B3<=0.1)"}],
+                },
+                "format": {"textFormat": {
+                    "bold": True,
+                    "foregroundColor": {"red": 0.50, "green": 0.0, "blue": 0.70},
+                }},
+            }}, "index": 0}}
+
     apply_fmt(service, sid, [
         {"mergeCells": {"range": {"sheetId": sid, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 0,  "endColumnIndex": 4},  "mergeType": "MERGE_ALL"}},
-        {"mergeCells": {"range": {"sheetId": sid, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 4,  "endColumnIndex": 7},  "mergeType": "MERGE_ALL"}},
-        {"mergeCells": {"range": {"sheetId": sid, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 7,  "endColumnIndex": 10}, "mergeType": "MERGE_ALL"}},
-        {"mergeCells": {"range": {"sheetId": sid, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 10, "endColumnIndex": 14}, "mergeType": "MERGE_ALL"}},
+        {"mergeCells": {"range": {"sheetId": sid, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 4,  "endColumnIndex": 9},  "mergeType": "MERGE_ALL"}},
+        {"mergeCells": {"range": {"sheetId": sid, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 9,  "endColumnIndex": 14}, "mergeType": "MERGE_ALL"}},
+        {"mergeCells": {"range": {"sheetId": sid, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 14, "endColumnIndex": 18}, "mergeType": "MERGE_ALL"}},
         {"repeatCell": {"range": {"sheetId": sid, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 0, "endColumnIndex": 4},
             "cell": {"userEnteredFormat": {"backgroundColor": {"red": 0.24, "green": 0.52, "blue": 0.78}, "textFormat": {"bold": True, "foregroundColor": {"red": 1, "green": 1, "blue": 1}}, "horizontalAlignment": "CENTER"}},
             "fields": "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"}},
-        {"repeatCell": {"range": {"sheetId": sid, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 4, "endColumnIndex": 7},
+        {"repeatCell": {"range": {"sheetId": sid, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 4, "endColumnIndex": 9},
             "cell": {"userEnteredFormat": {"backgroundColor": {"red": 0.18, "green": 0.58, "blue": 0.34}, "textFormat": {"bold": True, "foregroundColor": {"red": 1, "green": 1, "blue": 1}}, "horizontalAlignment": "CENTER"}},
             "fields": "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"}},
-        {"repeatCell": {"range": {"sheetId": sid, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 7, "endColumnIndex": 10},
+        {"repeatCell": {"range": {"sheetId": sid, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 9, "endColumnIndex": 14},
             "cell": {"userEnteredFormat": {"backgroundColor": {"red": 0.53, "green": 0.25, "blue": 0.63}, "textFormat": {"bold": True, "foregroundColor": {"red": 1, "green": 1, "blue": 1}}, "horizontalAlignment": "CENTER"}},
             "fields": "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"}},
-        {"repeatCell": {"range": {"sheetId": sid, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 10, "endColumnIndex": 14},
+        {"repeatCell": {"range": {"sheetId": sid, "startRowIndex": 0, "endRowIndex": 1, "startColumnIndex": 14, "endColumnIndex": 18},
             "cell": {"userEnteredFormat": {"backgroundColor": {"red": 0.30, "green": 0.30, "blue": 0.30}, "textFormat": {"bold": True, "foregroundColor": {"red": 1, "green": 1, "blue": 1}}, "horizontalAlignment": "CENTER"}},
             "fields": "userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)"}},
         {"repeatCell": {
@@ -343,24 +364,43 @@ def _ensure_summary_tab(service, stab):
             "cell": {"userEnteredFormat": {"backgroundColor": {"red": 0.851, "green": 0.918, "blue": 0.957}, "textFormat": {"bold": True}, "wrapStrategy": "WRAP"}},
             "fields": "userEnteredFormat(backgroundColor,textFormat,wrapStrategy)"}},
         {"repeatCell": {
-            "range": {"sheetId": sid, "startRowIndex": 2, "endRowIndex": 1000, "startColumnIndex": 1, "endColumnIndex": 14},
+            "range": {"sheetId": sid, "startRowIndex": 2, "endRowIndex": 1000, "startColumnIndex": 1, "endColumnIndex": 18},
             "cell": {"userEnteredFormat": {"numberFormat": {"type": "CURRENCY", "pattern": "$#,##0.00;[RED]-$#,##0.00"}}},
             "fields": "userEnteredFormat.numberFormat"}},
         {"repeatCell": {
-            "range": {"sheetId": sid, "startRowIndex": 2, "endRowIndex": 1000, "startColumnIndex": 5, "endColumnIndex": 6},
+            "range": {"sheetId": sid, "startRowIndex": 2, "endRowIndex": 1000, "startColumnIndex": 6, "endColumnIndex": 7},
+            "cell": {"userEnteredFormat": {"numberFormat": {"type": "NUMBER", "pattern": "0"}}},
+            "fields": "userEnteredFormat.numberFormat"}},
+        {"repeatCell": {
+            "range": {"sheetId": sid, "startRowIndex": 2, "endRowIndex": 1000, "startColumnIndex": 7, "endColumnIndex": 8},
             "cell": {"userEnteredFormat": {"numberFormat": {"type": "PERCENT", "pattern": "0.00%"}}},
             "fields": "userEnteredFormat.numberFormat"}},
         {"repeatCell": {
-            "range": {"sheetId": sid, "startRowIndex": 2, "endRowIndex": 1000, "startColumnIndex": 8, "endColumnIndex": 9},
+            "range": {"sheetId": sid, "startRowIndex": 2, "endRowIndex": 1000, "startColumnIndex": 11, "endColumnIndex": 12},
+            "cell": {"userEnteredFormat": {"numberFormat": {"type": "NUMBER", "pattern": "0"}}},
+            "fields": "userEnteredFormat.numberFormat"}},
+        {"repeatCell": {
+            "range": {"sheetId": sid, "startRowIndex": 2, "endRowIndex": 1000, "startColumnIndex": 12, "endColumnIndex": 13},
             "cell": {"userEnteredFormat": {"numberFormat": {"type": "PERCENT", "pattern": "0.00%"}}},
             "fields": "userEnteredFormat.numberFormat"}},
-        _gip(3, 4), _gip(6, 7), _gip(9, 10), _gip(10, 11), _gip(12, 13), _gip(13, 14),
+        _gip(3, 4), _gip(8, 9), _gip(13, 14), _gip(14, 15), _gip(16, 17), _gip(17, 18),
+        _near_money("F", 5), _near_money("K", 10),
     ])
 
 
-def _write_summary_row(service, tab_name, status, issues):
+def _write_summary_row(service, tab_name, status, issues, show_calls=True, show_puts=True):
     stab = _STATUS_TAB[status]
     _ensure_summary_tab(service, stab)
+
+    # Mirror layout.py build_sections row logic so cell refs stay valid when
+    # call/put sections are absent and the income/returns rows shift upward.
+    p = 19 if show_calls else 10
+    if show_puts:
+        i = p + 9
+    elif show_calls:
+        i = 19
+    else:
+        i = 10
 
     col_a = service.spreadsheets().values().get(
         spreadsheetId=SPREADSHEET_ID, range=f"{stab}!A:A"
@@ -374,21 +414,25 @@ def _write_summary_row(service, tab_name, status, issues):
     else:
         new_row = [
             tab_name,
-            f"='{tab_name}'!B5",
-            f"='{tab_name}'!E6",
-            f"='{tab_name}'!H4",
-            f"='{tab_name}'!B7",
-            f"='{tab_name}'!H16",
-            f"='{tab_name}'!B13+E{row_num}",
-            f"='{tab_name}'!B8",
-            f"='{tab_name}'!H24",
-            f"='{tab_name}'!B21+H{row_num}",
-            f"='{tab_name}'!B27",
-            f"='{tab_name}'!B6",
-            f"='{tab_name}'!H27",
-            f"=D{row_num}+G{row_num}+J{row_num}+K{row_num}",
+            f"='{tab_name}'!B5",                                         # B: Stock Price
+            f"='{tab_name}'!E6",                                         # C: Mkt Val
+            f"='{tab_name}'!H4",                                         # D: Stock Gain
+            f"='{tab_name}'!B7",                                         # E: Calls MV
+            f"='{tab_name}'!E11" if show_calls else "",                  # F: Strike (calls)
+            f"='{tab_name}'!E16" if show_calls else "",                  # G: Days Left (calls)
+            f"='{tab_name}'!H17" if show_calls else 0,                   # H: TV Ann Yield (calls)
+            f"='{tab_name}'!B13+E{row_num}" if show_calls else 0,        # I: All Call Results
+            f"='{tab_name}'!B8",                                         # J: Puts MV
+            f"='{tab_name}'!E{p+1}" if show_puts else "",               # K: Strike (puts)
+            f"='{tab_name}'!E{p+6}" if show_puts else "",               # L: Days Left (puts)
+            f"='{tab_name}'!H{p+7}" if show_puts else 0,                # M: TV Ann Yield (puts)
+            f"='{tab_name}'!B{p+3}+J{row_num}" if show_puts else 0,    # N: All Put Results
+            f"='{tab_name}'!B{i+1}",                                     # O: Dividends
+            f"='{tab_name}'!B6",                                         # P: Adj Cost Basis
+            f"='{tab_name}'!H{i+1}",                                     # Q: Close-out Value
+            f"=D{row_num}+I{row_num}+N{row_num}+O{row_num}",           # R: Overall P/L
         ]
-        write_range(service, stab, f"A{row_num}:N{row_num}", [new_row])
+        write_range(service, stab, f"A{row_num}:R{row_num}", [new_row])
 
 
 def write_summary_totals(service, stab):
@@ -419,22 +463,24 @@ def write_summary_totals(service, stab):
     last_data = max(data_rows)
     totals_row = last_data + 2
 
-    write_range(service, stab, f"A{last_data+1}:N{totals_row}", [[""] * 14, [""] * 14])
+    write_range(service, stab, f"A{last_data+1}:R{totals_row}", [[""] * 18, [""] * 18])
     total_row_data = [
         "TOTALS", "",
         f"=SUM(C3:C{last_data})", f"=SUM(D3:D{last_data})",
-        f"=SUM(E3:E{last_data})", "",
-        f"=SUM(G3:G{last_data})", f"=SUM(H3:H{last_data})", "",
-        f"=SUM(J3:J{last_data})", f"=SUM(K3:K{last_data})", "",
-        f"=SUM(M3:M{last_data})", f"=SUM(N3:N{last_data})",
+        f"=SUM(E3:E{last_data})", "", "", "",
+        f"=SUM(I3:I{last_data})",
+        f"=SUM(J3:J{last_data})", "", "", "",
+        f"=SUM(N3:N{last_data})",
+        f"=SUM(O3:O{last_data})", "",
+        f"=SUM(Q3:Q{last_data})", f"=SUM(R3:R{last_data})",
     ]
-    write_range(service, stab, f"A{totals_row}:N{totals_row}", [total_row_data])
+    write_range(service, stab, f"A{totals_row}:R{totals_row}", [total_row_data])
 
     apply_fmt(service, summary_sheet_id, [
         {"repeatCell": {
             "range": {"sheetId": summary_sheet_id,
                       "startRowIndex": totals_row - 1, "endRowIndex": totals_row,
-                      "startColumnIndex": 0, "endColumnIndex": 14},
+                      "startColumnIndex": 0, "endColumnIndex": 18},
             "cell": {"userEnteredFormat": {
                 "textFormat": {"bold": True},
                 "backgroundColor": {"red": 0.851, "green": 0.918, "blue": 0.957},
@@ -446,7 +492,7 @@ def write_summary_totals(service, stab):
         {"repeatCell": {
             "range": {"sheetId": summary_sheet_id,
                       "startRowIndex": totals_row - 1, "endRowIndex": totals_row,
-                      "startColumnIndex": 1, "endColumnIndex": 14},
+                      "startColumnIndex": 1, "endColumnIndex": 18},
             "cell": {"userEnteredFormat": {
                 "numberFormat": {"type": "CURRENCY", "pattern": "$#,##0.00;[RED]-$#,##0.00"},
             }},
@@ -456,12 +502,12 @@ def write_summary_totals(service, stab):
     print(f"  Summary totals written to row {totals_row}.")
 
     if stab == "Summary-Open":
-        col_m = service.spreadsheets().values().get(
-            spreadsheetId=SPREADSHEET_ID, range=f"{stab}!M3:M{last_data}"
+        col_q = service.spreadsheets().values().get(
+            spreadsheetId=SPREADSHEET_ID, range=f"{stab}!Q3:Q{last_data}"
         ).execute().get("values", [])
         has_slices = any(
             row and row[0] not in ("", "0", "0.0", "$0.00")
-            for row in col_m
+            for row in col_q
         )
         if not has_slices:
             print("  Skipping pie chart — no close-out values to plot.")
@@ -476,7 +522,7 @@ def write_summary_totals(service, stab):
                         "series": {"sourceRange": {"sources": [{
                             "sheetId": summary_sheet_id,
                             "startRowIndex": 2, "endRowIndex": last_data,
-                            "startColumnIndex": 12, "endColumnIndex": 13,
+                            "startColumnIndex": 16, "endColumnIndex": 17,
                         }]}},
                         "domain": {"sourceRange": {"sources": [{
                             "sheetId": summary_sheet_id,

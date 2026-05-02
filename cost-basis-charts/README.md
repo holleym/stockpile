@@ -20,3 +20,10 @@ built from brokerage transaction exports using Claude Code.
 
 Full Claude Code workflow — describe the feature, iterate on the output visually,
 no manual coding required.
+
+## Support
+
+If you find this useful, you can support the work here:
+
+- GitHub Sponsors: https://github.com/sponsors/medloh
+- Patreon: https://www.patreon.com/OptionsforLongTermInvestors

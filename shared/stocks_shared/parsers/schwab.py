@@ -93,7 +93,7 @@ def _parse_rows_to_transactions(rows):
             "",
         ])
 
-    transactions.reverse()
+    transactions.sort(key=lambda r: (r[0][6:], r[0][:2], r[0][3:5]))
     return transactions
 
 

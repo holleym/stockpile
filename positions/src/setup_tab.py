@@ -26,7 +26,7 @@ from stocks_shared.analysis import (
     compute_status,
     detect_open_positions,
 )
-from layout import TXN_ROW, build_sections
+from layout import TXN_ROW, build_sections, build_txn_only_sections
 
 
 # ── Yahoo Finance ─────────────────────────────────────────────────────────────
@@ -38,6 +38,18 @@ from stocks_shared.yahoo import (
 
 
 # ── Ticker processing ─────────────────────────────────────────────────────────
+
+def _txn_display(row):
+    """Return the row with qty negated for sell-side actions."""
+    row = list(row)
+    action = str(row[1]).strip() if len(row) > 1 else ""
+    if action.startswith("Sell") and row[6] not in ("", None):
+        try:
+            row[6] = -abs(int(row[6]))
+        except (ValueError, TypeError):
+            pass
+    return row
+
 
 def process_ticker(ticker, transactions, brokerage, service,
                    current_price=None, current_call_value=None, current_put_value=None):
@@ -51,8 +63,30 @@ def process_ticker(ticker, transactions, brokerage, service,
         print(f"    ! {issue}")
 
     if status == "Inconsistent":
-        print("  Skipping tab — recording in Summary as Inconsistent.")
-        sheets._write_summary_row(service, tab_name, status, issues)
+        print("  Creating transaction-log-only tab for inconsistent position.")
+        sheet_id = sheets.recreate_tab(service, tab_name)
+        ITXN = 7  # transaction data start row for inconsistent tabs
+        sheets.batch_write(service, tab_name, {
+            "A1:C1": [[ticker, "Status", "Inconsistent"]],
+            "A3:A3": [["; ".join(issues)]],
+            "A5:K5": [["TRANSACTION LOG", "", "", "", "", "", "", "", "", "", ""]],
+            "A6:K6": [["Date", "Action", "Type", "Symbol", "Strike", "Expiration",
+                       "Qty", "Price", "Fees", "Net Amount", "Notes"]],
+        })
+        chunk = 50
+        for idx in range(0, len(transactions), chunk):
+            start_row = ITXN + idx
+            batch = [_txn_display(r) for r in transactions[idx:idx+chunk]]
+            end_row = start_row + len(batch) - 1
+            sheets.write_range(service, tab_name, f"A{start_row}:K{end_row}", batch)
+        sheets.apply_fmt(service, sheet_id, [
+            *sheets.title_row(sheet_id),
+            sheets.status_cell_fmt(sheet_id, status),
+            sheets.section_header(sheet_id, 4),  # row 5 — blue TXN LOG header
+            sheets.col_header(sheet_id, 5),       # row 6 — light green column headers
+        ])
+        sheets._write_summary_row(service, tab_name, status, issues,
+                                   show_calls=False, show_puts=False)
         return
 
     if current_price is None:
@@ -81,6 +115,13 @@ def process_ticker(ticker, transactions, brokerage, service,
 
     open_calls = [p for p in open_positions if p["type"] == "Call"]
     open_puts  = [p for p in open_positions if p["type"] == "Put"]
+    show_calls = bool(open_calls) or any(row[2] == "Call" for row in transactions)
+    show_puts  = bool(open_puts)  or any(row[2] == "Put"  for row in transactions)
+
+    # Compute dynamic row positions (mirrors layout.py build_sections logic)
+    _p = 19 if show_calls else 10
+    _i = (_p + 9) if show_puts else (19 if show_calls else 10)
+    txn_row = _i + 9
 
     if current_call_value is None and open_calls:
         total = sum(
@@ -111,7 +152,7 @@ def process_ticker(ticker, transactions, brokerage, service,
     print(f"  Recreated tab '{tab_name}'.")
 
     print("  Writing layout...")
-    last_row = TXN_ROW + len(transactions) - 1
+    last_row = txn_row + len(transactions) - 1
     avg_held_anchor = compute_avg_held_anchor(transactions)
     if avg_held_anchor:
         print(f"  FIFO avg-held anchor: {avg_held_anchor[0]:04d}-{avg_held_anchor[1]:02d}-{avg_held_anchor[2]:02d}")
@@ -120,7 +161,8 @@ def process_ticker(ticker, transactions, brokerage, service,
         print(f"  Closed position avg days held: {closed_avg_days}")
 
     sections = build_sections(tab_name, open_positions, last_row,
-                               avg_held_anchor, brokerage, status, closed_avg_days)
+                               avg_held_anchor, brokerage, status, closed_avg_days,
+                               show_calls=show_calls, show_puts=show_puts)
     sheets.batch_write(service, tab_name, sections)
 
     sheets.write_range(service, tab_name, "B5",
@@ -133,9 +175,10 @@ def process_ticker(ticker, transactions, brokerage, service,
     print(f"  Writing {len(transactions)} transactions...")
     chunk = 50
     for i in range(0, len(transactions), chunk):
-        start_row = TXN_ROW + i
-        end_row = start_row + len(transactions[i:i+chunk]) - 1
-        sheets.write_range(service, tab_name, f"A{start_row}:K{end_row}", transactions[i:i+chunk])
+        start_row = txn_row + i
+        batch = [_txn_display(r) for r in transactions[i:i+chunk]]
+        end_row = start_row + len(batch) - 1
+        sheets.write_range(service, tab_name, f"A{start_row}:K{end_row}", batch)
 
     adj_text = (
         "** Adj Cost Basis / Share: net sum of all cash transactions (stock buys/sells, "
@@ -163,13 +206,19 @@ def process_ticker(ticker, transactions, brokerage, service,
         "(stock market value + open options market value), annualized by Avg Days Held."
     )
 
+    # Aliases used in formatting below (same values as _p/_i/_txn_row computed above)
+    p = _p
+    i = _i
+
     if issues:
         sheets.write_range(service, tab_name, "K1", [["Data issues: " + "; ".join(issues)]])
-    sheets.write_range(service, tab_name, "K6",  [[adj_text]])
-    sheets.write_range(service, tab_name, "K17", [[tv_call_text]])
-    sheets.write_range(service, tab_name, "K26", [[tv_put_text]])
-    sheets.write_range(service, tab_name, "K30", [[ic_yield_text]])
-    sheets.write_range(service, tab_name, "K31", [[cov_yield_text]])
+    sheets.write_range(service, tab_name, "K6", [[adj_text]])
+    if show_calls:
+        sheets.write_range(service, tab_name, "K17", [[tv_call_text]])
+    if show_puts:
+        sheets.write_range(service, tab_name, f"K{p+7}", [[tv_put_text]])
+    sheets.write_range(service, tab_name, f"K{i+2}", [[ic_yield_text]])
+    sheets.write_range(service, tab_name, f"K{i+3}", [[cov_yield_text]])
 
     def footnote_merge(row0):
         return {"mergeCells": {
@@ -188,21 +237,28 @@ def process_ticker(ticker, transactions, brokerage, service,
             "fields": "userEnteredFormat.wrapStrategy",
         }}
 
+    # p0, i0: 0-indexed row numbers for put/income sections
+    p0 = p - 1
+    i0 = i - 1
+
     merge_fmt = [
-        footnote_merge(5), footnote_merge(16), footnote_merge(25),
-        footnote_merge(29), footnote_merge(30),
+        footnote_merge(5),
+        *([footnote_merge(16),
+           sheets.light_bg(sheet_id, 16, 6, 17, 8),
+           sheets.light_bg(sheet_id, 16, 10, 17, 26),
+           footnote_overflow(16)] if show_calls else []),
+        *([footnote_merge(p0 + 7),
+           sheets.light_bg(sheet_id, p0 + 7, 6, p0 + 8, 8),
+           sheets.light_bg(sheet_id, p0 + 7, 10, p0 + 8, 26),
+           footnote_overflow(p0 + 7)] if show_puts else []),
+        footnote_merge(i0 + 2), footnote_merge(i0 + 3),
         sheets.light_bg(sheet_id, 5, 0, 6, 2),
         sheets.light_bg(sheet_id, 5, 10, 6, 26),
-        sheets.light_bg(sheet_id, 16, 6, 17, 8),
-        sheets.light_bg(sheet_id, 16, 10, 17, 26),
-        sheets.light_bg(sheet_id, 25, 6, 26, 8),
-        sheets.light_bg(sheet_id, 25, 10, 26, 26),
-        sheets.light_bg(sheet_id, 29, 6, 30, 8),
-        sheets.light_bg(sheet_id, 29, 10, 30, 26),
-        sheets.light_bg(sheet_id, 30, 6, 31, 8),
-        sheets.light_bg(sheet_id, 30, 10, 31, 26),
-        footnote_overflow(4), footnote_overflow(16), footnote_overflow(25),
-        footnote_overflow(29), footnote_overflow(30),
+        sheets.light_bg(sheet_id, i0 + 2, 6, i0 + 3, 8),
+        sheets.light_bg(sheet_id, i0 + 2, 10, i0 + 3, 26),
+        sheets.light_bg(sheet_id, i0 + 3, 6, i0 + 4, 8),
+        sheets.light_bg(sheet_id, i0 + 3, 10, i0 + 4, 26),
+        footnote_overflow(4), footnote_overflow(i0 + 2), footnote_overflow(i0 + 3),
     ]
     if issues:
         merge_fmt += [
@@ -215,12 +271,10 @@ def process_ticker(ticker, transactions, brokerage, service,
     fmt_requests = [
         *sheets.title_row(sheet_id),
         sheets.status_cell_fmt(sheet_id, status),
-        sheets.section_header(sheet_id, 2),
-        sheets.section_header(sheet_id, 9),
-        sheets.section_header(sheet_id, 18),
-        sheets.section_header(sheet_id, 27),
-        sheets.section_header(sheet_id, TXN_ROW - 3),
-        sheets.col_header(sheet_id, TXN_ROW - 2),
+        sheets.section_header(sheet_id, 2),                      # CURRENT VALUES
+        sheets.section_header(sheet_id, i0),                     # INCOME/P&L/RETURNS
+        sheets.section_header(sheet_id, txn_row - 3),             # TXN LOG
+        sheets.col_header(sheet_id, txn_row - 2),
         sheets.yellow_bg(sheet_id, 4, 1, 5, 2),
         sheets.yellow_bg(sheet_id, 6, 1, 8, 2),
         sheets.currency(sheet_id, 4, 1, 8, 2),
@@ -230,63 +284,69 @@ def process_ticker(ticker, transactions, brokerage, service,
         sheets.percent(sheet_id, 4, 7, 5, 8),
         sheets.plain_number(sheet_id, 5, 7, 7, 8),
         sheets.percent(sheet_id, 7, 7, 8, 8),
-        sheets.currency(sheet_id, 10, 1, 15, 2),
-        sheets.currency(sheet_id, 10, 4, 11, 5),
-        sheets.plain_number(sheet_id, 12, 4, 13, 5),
-        sheets.plain_number(sheet_id, 13, 4, 14, 5),
-        sheets.right_align(sheet_id, 14, 4, 15, 5),
-        sheets.currency(sheet_id, 10, 7, 15, 8),
-        sheets.percent(sheet_id, 15, 7, 16, 8),
-        sheets.currency(sheet_id, 10, 7, 13, 8),
-        sheets.right_align(sheet_id, 13, 7, 14, 8),
-        sheets.currency(sheet_id, 14, 7, 16, 8),
-        sheets.percent(sheet_id, 16, 7, 17, 8),
-        sheets.currency(sheet_id, 10, 4, 11, 5),
-        sheets.date_fmt(sheet_id, 12, 4, 13, 5),
-        sheets.currency(sheet_id, 14, 4, 15, 5),
-        sheets.plain_number(sheet_id, 13, 4, 14, 5),
-        sheets.plain_number(sheet_id, 15, 4, 16, 5),
-        sheets.plain_number(sheet_id, 16, 4, 17, 5),
-        sheets.currency(sheet_id, 19, 1, 24, 2),
-        sheets.currency(sheet_id, 19, 4, 20, 5),
-        sheets.date_fmt(sheet_id, 21, 4, 22, 5),
-        sheets.currency(sheet_id, 23, 4, 24, 5),
-        sheets.plain_number(sheet_id, 22, 4, 23, 5),
-        sheets.plain_number(sheet_id, 24, 4, 25, 5),
-        sheets.plain_number(sheet_id, 25, 4, 26, 5),
-        sheets.currency(sheet_id, 19, 7, 22, 8),
-        sheets.right_align(sheet_id, 22, 7, 23, 8),
-        sheets.currency(sheet_id, 23, 7, 25, 8),
-        sheets.percent(sheet_id, 25, 7, 26, 8),
-        sheets.currency(sheet_id, 28, 1, 29, 2),
-        sheets.plain_number(sheet_id, 29, 1, 30, 2),
-        sheets.currency(sheet_id, 30, 1, 32, 2),
-        sheets.currency(sheet_id, 28, 4, 33, 5),
-        sheets.currency(sheet_id, 28, 7, 29, 8),
-        sheets.percent(sheet_id, 29, 7, 31, 8),
-        sheets.currency(sheet_id, TXN_ROW - 1, 7, 1000, 10),
+        # Income / P&L / Returns (dynamic rows)
+        sheets.currency(sheet_id, i0 + 1, 1, i0 + 2, 2),        # Total Dividends
+        sheets.plain_number(sheet_id, i0 + 2, 1, i0 + 3, 2),    # Dividend Count
+        sheets.currency(sheet_id, i0 + 3, 1, i0 + 5, 2),        # Net premiums
+        sheets.currency(sheet_id, i0 + 1, 4, i0 + 6, 5),        # P&L data
+        sheets.currency(sheet_id, i0 + 1, 7, i0 + 2, 8),        # Close-out Value
+        sheets.percent(sheet_id, i0 + 2, 7, i0 + 4, 8),         # Ann Yields
+        sheets.currency(sheet_id, txn_row - 1, 7, 1000, 10),
         sheets.green_if_positive(sheet_id, 3, 7, 5, 8),
         sheets.green_if_positive(sheet_id, 7, 7, 8, 8),
-        sheets.green_if_positive(sheet_id, 12, 1, 13, 2),
-        sheets.green_if_positive(sheet_id, 14, 1, 15, 2),
-        sheets.green_if_positive(sheet_id, 12, 7, 13, 8),
-        sheets.green_if_positive(sheet_id, 21, 1, 22, 2),
-        sheets.green_if_positive(sheet_id, 23, 1, 24, 2),
-        sheets.green_if_positive(sheet_id, 21, 7, 22, 8),
-        sheets.green_if_positive(sheet_id, 10, 1, 11, 2),
-        sheets.green_if_positive(sheet_id, 19, 1, 20, 2),
         sheets.green_if_positive(sheet_id, 5, 4, 6, 5),
-        sheets.green_if_positive(sheet_id, 10, 7, 11, 8),
-        sheets.green_if_positive(sheet_id, 19, 7, 20, 8),
-        sheets.green_if_positive(sheet_id, 28, 4, 33, 5),
-        sheets.green_if_positive(sheet_id, 28, 1, 29, 2),
-        sheets.green_if_positive(sheet_id, 30, 1, 32, 2),
-        sheets.green_if_positive(sheet_id, 29, 7, 31, 8),
+        sheets.green_if_positive(sheet_id, i0 + 1, 4, i0 + 6, 5),  # P&L breakdown
+        sheets.green_if_positive(sheet_id, i0 + 1, 1, i0 + 2, 2),  # Dividends
+        sheets.green_if_positive(sheet_id, i0 + 3, 1, i0 + 5, 2),  # Net premiums
+        sheets.green_if_positive(sheet_id, i0 + 2, 7, i0 + 4, 8),  # Ann Yields
     ]
+
+    if show_calls:
+        fmt_requests += [
+            sheets.section_header(sheet_id, 9),                  # CALL HISTORY
+            sheets.currency(sheet_id, 10, 1, 15, 2),             # Call history data
+            sheets.currency(sheet_id, 10, 4, 11, 5),             # Strike
+            sheets.date_fmt(sheet_id, 12, 4, 13, 5),             # Date Opened
+            sheets.currency(sheet_id, 14, 4, 15, 5),             # Price at Open
+            sheets.plain_number(sheet_id, 13, 4, 14, 5),         # Days Open
+            sheets.plain_number(sheet_id, 15, 4, 16, 5),         # Days Left
+            sheets.plain_number(sheet_id, 16, 4, 17, 5),         # Contracts
+            sheets.currency(sheet_id, 10, 7, 13, 8),             # Metrics premium-P&L
+            sheets.right_align(sheet_id, 13, 7, 14, 8),          # Status
+            sheets.currency(sheet_id, 14, 7, 16, 8),             # Intrinsic/Time Value
+            sheets.percent(sheet_id, 16, 7, 17, 8),              # TV Ann Yield
+            sheets.green_if_positive(sheet_id, 12, 1, 13, 2),    # Net Call Premium
+            sheets.green_if_positive(sheet_id, 14, 1, 15, 2),    # Covered Call Results
+            sheets.green_if_positive(sheet_id, 10, 1, 11, 2),    # Call Premium Received
+            sheets.green_if_positive(sheet_id, 10, 7, 11, 8),    # Metrics Premium Received
+            sheets.green_if_positive(sheet_id, 12, 7, 13, 8),    # Unrealized P&L
+        ]
+
+    if show_puts:
+        fmt_requests += [
+            sheets.section_header(sheet_id, p0),                 # PUT HISTORY
+            sheets.currency(sheet_id, p0 + 1, 1, p0 + 6, 2),    # Put history data
+            sheets.currency(sheet_id, p0 + 1, 4, p0 + 2, 5),    # Strike
+            sheets.date_fmt(sheet_id, p0 + 3, 4, p0 + 4, 5),    # Date Opened
+            sheets.currency(sheet_id, p0 + 5, 4, p0 + 6, 5),    # Price at Open
+            sheets.plain_number(sheet_id, p0 + 4, 4, p0 + 5, 5),# Days Open
+            sheets.plain_number(sheet_id, p0 + 6, 4, p0 + 7, 5),# Days Left
+            sheets.plain_number(sheet_id, p0 + 7, 4, p0 + 8, 5),# Contracts
+            sheets.currency(sheet_id, p0 + 1, 7, p0 + 4, 8),    # Metrics premium-P&L
+            sheets.right_align(sheet_id, p0 + 4, 7, p0 + 5, 8), # Status
+            sheets.currency(sheet_id, p0 + 5, 7, p0 + 7, 8),    # Intrinsic/Time Value
+            sheets.percent(sheet_id, p0 + 7, 7, p0 + 8, 8),     # TV Ann Yield
+            sheets.green_if_positive(sheet_id, p0 + 3, 1, p0 + 4, 2),  # Net Put Premium
+            sheets.green_if_positive(sheet_id, p0 + 5, 1, p0 + 6, 2),  # Put Results
+            sheets.green_if_positive(sheet_id, p0 + 1, 1, p0 + 2, 2),  # Put Premium Received
+            sheets.green_if_positive(sheet_id, p0 + 1, 7, p0 + 2, 8),  # Metrics Premium Received
+            sheets.green_if_positive(sheet_id, p0 + 3, 7, p0 + 4, 8),  # Unrealized P&L
+        ]
     sheets.apply_fmt(service, sheet_id, fmt_requests)
 
     print("  Updating Summary...")
-    sheets._write_summary_row(service, tab_name, status, issues)
+    sheets._write_summary_row(service, tab_name, status, issues,
+                               show_calls=show_calls, show_puts=show_puts)
     print(f"  Done: '{tab_name}'")
 
 
