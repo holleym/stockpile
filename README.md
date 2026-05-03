@@ -131,6 +131,24 @@ To add a package to a specific sub-project:
 ```bash
 uv add plotly --project cost-basis-charts
 ```
-
 Then re-run `uv sync` to update the lockfile.
+
+## Troubleshooting
+
+### Windows: `ImportError: DLL load failed while importing base`
+
+If you see an error like this when running on Windows:
+
+```
+ImportError: DLL load failed while importing base:
+An Application Control policy has blocked this file.
+```
+
+This is Windows blocking pandas' C extension DLLs due to an
+Application Control policy. Try running from an **administrator
+PowerShell**:
+
+1. Right-click PowerShell and select **Run as administrator**
+2. Navigate to the repo: `cd path\to\stockpile`
+3. Run normally: `uv run cost-basis-charts/run_charts.py`
 

@@ -6,6 +6,7 @@ dependencies = [
     "stocks-shared",
     "plotly",
     "pandas",
+    "kaleido",
 ]
 
 [dependency-groups]

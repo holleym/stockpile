@@ -24,6 +24,47 @@ def _remove_open_option(open_options, opt_type, strike, expiration, qty):
     open_options[:] = new_open
 
 
+def _merge_rolls(series):
+    """Merge same-date BTC+STO pairs into a single Roll annotation.
+
+    A roll is a BTC and STO on the same date. The merged entry keeps the
+    final state (after both legs) but replaces both labels with a single
+    'Roll: credit/debit ±$X.XX/shr' label so the chart shows one marker
+    and makes the direction of cost-basis movement obvious.
+    """
+    if not series:
+        return series
+    result = []
+    i = 0
+    while i < len(series):
+        cur = series[i]
+        nxt = series[i + 1] if i + 1 < len(series) else None
+        cur_label = cur.get("label") or ""
+        nxt_label = (nxt.get("label") or "") if nxt else ""
+        is_btc = lambda lbl: lbl.startswith("BTC")
+        is_sto = lambda lbl: lbl.startswith("STO")
+        if (nxt is not None
+                and cur["date"] == nxt["date"]
+                and cur["affects"] == "adjusted"
+                and nxt["affects"] == "adjusted"
+                and (is_btc(cur_label) or is_sto(cur_label))
+                and (is_btc(nxt_label) or is_sto(nxt_label))
+                and is_btc(cur_label) != is_btc(nxt_label)):
+            pre_adj = result[-1]["adjusted_cost"] if result else cur["adjusted_cost"]
+            post_adj = nxt["adjusted_cost"]
+            delta = post_adj - pre_adj  # negative = credit, positive = debit
+            if delta <= 0:
+                roll_label = f"Roll: credit +${abs(delta):.2f}/shr"
+            else:
+                roll_label = f"Roll: debit −${delta:.2f}/shr"
+            result.append({**nxt, "label": roll_label})
+            i += 2
+        else:
+            result.append(cur)
+            i += 1
+    return result
+
+
 def compute_cost_basis_series(transactions):
     """Compute running cost basis per share over time.
 
@@ -38,6 +79,7 @@ def compute_cost_basis_series(transactions):
     fifo_total = 0.0     # sum of remaining lot costs: qty * cost_per_share
     shares_held = 0
     adjustment = 0.0     # cumulative net premiums + dividends (positive = lowers cost)
+    total_income = 0.0   # same cash flows as adjustment but never scaled on sells
 
     series = []
     open_options = []    # [{opt_type, strike, expiration, qty}, ...]
@@ -94,6 +136,7 @@ def compute_cost_basis_series(transactions):
         elif opt_type in ("Call", "Put"):
             if action == "Sell to Open":
                 adjustment += amount_f
+                total_income += amount_f
                 open_options.append({
                     "opt_type": opt_type, "strike": strike,
                     "expiration": expiration, "qty": abs(qty_i),
@@ -103,6 +146,7 @@ def compute_cost_basis_series(transactions):
                 affects = "adjusted"
             elif action == "Buy to Close":
                 adjustment += amount_f
+                total_income += amount_f
                 _remove_open_option(open_options, opt_type, strike, expiration, abs(qty_i))
                 label = f"BTC {abs(qty_i)} {opt_type} (${amount_f:.0f})"
                 affects = "adjusted"
@@ -111,6 +155,7 @@ def compute_cost_basis_series(transactions):
 
         elif opt_type == "Dividend":
             adjustment += amount_f
+            total_income += amount_f
             label = f"Dividend +${amount_f:.2f}"
             affects = "adjusted"
 
@@ -122,8 +167,9 @@ def compute_cost_basis_series(transactions):
                 "shares": shares_held,
                 "fifo_cost": round(fifo_cost, 4),
                 "adjusted_cost": round(adjusted_cost, 4),
+                "total_income": round(total_income, 2),
                 "label": label,
                 "affects": affects,
             })
 
-    return series, open_options
+    return _merge_rolls(series), open_options

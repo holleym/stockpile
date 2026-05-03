@@ -33,3 +33,18 @@ viewer can see how their adjusted cost basis compares to the stock price at each
 
 Show the full Claude Code workflow: describe what you want, let Claude write the
 parsing and charting code, iterate on the output visually.
+
+## Running the tool
+
+Always run from the **repo root** (`stockpile/`), not from this
+subdirectory. Use `uv run` so the shared `.venv` and `stocks-shared`
+package are available:
+
+```bash
+uv run cost-basis-charts/run_charts.py
+uv run cost-basis-charts/run_charts.py --symbol SCHW
+```
+
+Never use `python` or `python3` directly — they won't have the
+project's dependencies. Run `uv sync` from the repo root after any
+`pyproject.toml` change.
