@@ -365,6 +365,7 @@ def _show_iv_chart(df: pd.DataFrame, spot: float, mode: str,
     chart_df["IV%"]        = (chart_df["iv"] * 100).round(2)
     chart_df["FittedIV%"]  = (chart_df["iv_fitted"] * 100).round(2)
     chart_df["IV+pp"]      = (chart_df["iv_excess"] * 100).round(2)
+    chart_df["Ann%"]       = chart_df["ann_yield_pct"].round(2)
     chart_df["ExpLabel"]   = chart_df["expiration"].apply(
         lambda d: datetime.strptime(d, "%Y-%m-%d").strftime("%b %d '%y")
     )
@@ -453,6 +454,7 @@ def _show_iv_chart(df: pd.DataFrame, spot: float, mode: str,
         alt.Tooltip("FittedIV%:Q",     title="Fitted IV%", format=".1f"),
         alt.Tooltip("IV+pp:Q",         title="IV excess (pp)", format="+.1f"),
         alt.Tooltip("delta:Q",         format=".2f"),
+        alt.Tooltip("Ann%:Q",          title="Ann%", format=".1f"),
         alt.Tooltip("open_interest:Q", title="OI"),
         alt.Tooltip("bid:Q",           title="Bid",  format="$.2f"),
         alt.Tooltip("ask:Q",           title="Ask",  format="$.2f"),
