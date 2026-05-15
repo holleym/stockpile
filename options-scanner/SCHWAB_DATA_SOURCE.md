@@ -34,6 +34,17 @@ Set the callback URL to `https://127.0.0.1:8182/`.
 - after creating this app it also took a few hours before app
   was ready to use.
 
+**When creating the app, request only the permissions this tool
+actually needs: read-only market data and option chain access.
+Do not grant trading or account management permissions — this
+tool never places orders or reads account balances.**
+
+> **Keep your App Key and App Secret private.** Anyone who has
+> them can make API calls on your behalf. Never commit them to
+> git, share them publicly, or store them in any file inside the
+> repo directory. The `config.toml` file is gitignored for this
+> reason — double-check with `git status` if you are ever unsure.
+
 ### 2. Create config.toml
 
 ```bash
