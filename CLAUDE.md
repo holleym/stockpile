@@ -66,6 +66,43 @@ uv run options-scanner/run_portfolio.py --csv input/schwab028.csv \
 - `google-sheets-setup/` — Google Sheets API setup docs
 - `input/` — brokerage CSV exports (gitignored)
 
+## Sibling repo
+
+YouTube production materials and the long-form ideas / research
+parking lot live in a **separate private repo** at
+`../stockpile-private/`:
+
+- `options-scanner/youtube/epN/` — per-episode `script.md`, slide
+  HTML, and image assets (GIMP `.xcf` sources alongside `.png`
+  exports)
+- `IDEAS.md` — speculative project ideas, Schwab-API sketches, and
+  strategy research questions for this codebase
+
+That repo holds no code. When its scripts or IDEAS.md reference files
+like `schwab_auth.py` or `options-scanner/run_scanner.py`, those
+paths are here.
+
+## Keeping the two repos in sync
+
+This repo and `../stockpile-private/` evolve together. Watch the
+boundary and surface what you notice — don't act across it
+unilaterally:
+
+- **Code change here that affects the active episode** — if a
+  feature, UI label, command flag, or behavior shown in the current
+  in-flight `epN/script.md` changes, the script likely needs an
+  update. Check which episode is in active drafting before assuming
+  (ask the user, or look for the most recently edited `script.md`
+  under `../stockpile-private/options-scanner/youtube/`).
+- **Script change in the private repo that contradicts current
+  code** — if a spoken description has drifted from what this code
+  actually does, flag the mismatch rather than guessing which side
+  is right.
+- **Misplaced content** — if something here looks like it belongs in
+  the private repo (a script draft, slide source, idea log) or vice
+  versa (a config file or library that ended up under `youtube/`),
+  call it out.
+
 ## Slash commands
 
 Inside a Claude Code session, `/` shows available project commands:
