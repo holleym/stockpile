@@ -181,7 +181,7 @@ SPX!       use exactly "SPX" — fetches the stock, not the index
 | `--buy` | off | Buy mode: rank by IV vs. surface, lowest first (IV-cheap relative to neighbors) |
 | `--min-dte` | 365 | Minimum days to expiration |
 | `--max-dte` | none | Maximum days to expiration |
-| `--min-oi` | 25 | Minimum open interest |
+| `--min-oi` | 25 | Minimum open interest. Filters the top candidates table only; the volatility-surface chart and per-expiration chain table show all strikes, with low-OI rows shaded yellow as a liquidity warning. |
 | `--min-delta` | 0.10 | Exclude abs(delta) below this |
 | `--max-delta` | 0.75 | Exclude abs(delta) above this |
 | `--top` | 10 | Max rows shown in terminal |

@@ -19,9 +19,10 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
+_FAVICON_PATH = Path(__file__).parent / "assets" / "favicon.png"
 st.set_page_config(
     page_title="Options Scanner",
-    page_icon="📈",
+    page_icon=str(_FAVICON_PATH) if _FAVICON_PATH.exists() else "📈",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -907,7 +908,10 @@ def _tab_single() -> None:
                             use_container_width=True, key="s_scan_btn")
 
     # ── Run scan on button click, store in session state ──────────────────────
-    if scanned:
+    # Also triggers when the sticky "Rescan" pill below the results was
+    # clicked on the previous run — it sets `_rescan_trigger` and calls
+    # st.rerun() so this top-of-script handler picks it up.
+    if scanned or st.session_state.pop("_rescan_trigger", False):
         ticker_clean = ticker.strip().upper()
         if not ticker_clean:
             st.error("Enter a ticker symbol.")
@@ -1030,6 +1034,20 @@ def _tab_single() -> None:
     if rcc is not None:
         st.info(f"Rolling {res['roll_type']} ${res['roll_strike']:.0f} "
                 f"{res['roll_exp_str']} — close cost (mid): **${rcc:.2f}**")
+
+    # Floating rescan button — CSS pins it to the top header bar next to
+    # the logo so it stays visible at every scroll position. Lets the
+    # user re-run the scan (e.g. after flipping the sidebar data source)
+    # without scrolling back to the top of the page. The container is
+    # rendered here but `position: fixed` (in the global style block)
+    # lifts it out of normal flow — so its location in the code doesn't
+    # affect the visible layout, only that it's scoped to Single Ticker
+    # results.
+    with st.container(key="rescan_pill_single"):
+        if st.button(f"↻ Rescan {ticker_r}", type="primary",
+                     key="s_rescan_btn"):
+            st.session_state["_rescan_trigger"] = True
+            st.rerun()
 
     _show_iv_chart(df_filt, spot, mode_r, res["min_oi"], res["top_n"],
                    buy_r, ticker=ticker_r, key_prefix="s")
@@ -1651,7 +1669,11 @@ def _render_spreads_view(
                             key=f"{key_prefix}_scan_btn")
 
     # ── Scan ──────────────────────────────────────────────────────────────────
-    if scanned:
+    # Also fires when the floating rescan button below was clicked on the
+    # previous run (it sets `_{key_prefix}_rescan_trigger` and calls
+    # st.rerun()).
+    rescan_flag = f"_{key_prefix}_rescan_trigger"
+    if scanned or st.session_state.pop(rescan_flag, False):
         ticker_clean = ticker.strip().upper()
         if not ticker_clean:
             st.error("Enter a ticker symbol.")
@@ -1720,6 +1742,16 @@ def _render_spreads_view(
 
     spot = res["spot"]
     df_r = res["df"]
+    ticker_r = res["ticker"]
+
+    # Floating rescan button — same fixed-position treatment as the
+    # Single Ticker tab. The shared `[class*="st-key-rescan_pill"]` CSS
+    # block in the global style section pins this to the header bar.
+    with st.container(key=f"rescan_pill_{key_prefix}"):
+        if st.button(f"↻ Rescan {ticker_r}", type="primary",
+                     key=f"{key_prefix}_rescan_btn"):
+            st.session_state[rescan_flag] = True
+            st.rerun()
 
     st.divider()
     m1, m2, m3 = st.columns(3)
@@ -1914,6 +1946,29 @@ st.markdown(
     [data-testid="stSidebarCollapseButton"] *,
     button[data-testid="stExpandSidebarButton"] * {
         color: #1e293b !important;
+    }
+
+    /* Floating rescan button — pinned to the top header bar (centered
+       horizontally) so it stays visible at every scroll position.
+       Streamlit 1.57 adds `st-key-<key>` to a container's wrapping div;
+       we use a substring match so the same rule covers every tab's pill
+       (rescan_pill_single, rescan_pill_sp, rescan_pill_dir,
+       rescan_pill_nu). Only one is visible at a time because Streamlit
+       hides inactive tab panels via display:none. */
+    [class*="st-key-rescan_pill"] {
+        position: fixed;
+        top: 9px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 999990;
+        width: auto !important;
+    }
+    [class*="st-key-rescan_pill"] .stButton > button {
+        padding: 0.3rem 0.85rem !important;
+        min-height: 2.5rem;
+        border-radius: 0.5rem !important;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+        font-weight: 600;
     }
     </style>
     """,
