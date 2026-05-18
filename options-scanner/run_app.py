@@ -521,6 +521,7 @@ def _show_iv_chart(df: pd.DataFrame, spot: float, mode: str,
         alt.Tooltip("IV+pp:Q",         title="IV excess (pp)", format="+.1f"),
         alt.Tooltip("delta:Q",         format=".2f"),
         alt.Tooltip("Ann%:Q",          title="Ann%", format=".1f"),
+        alt.Tooltip("volume:Q",        title="Volume", format=",.0f"),
         alt.Tooltip("open_interest:Q", title="OI"),
         alt.Tooltip("bid:Q",           title="Bid",  format="$.2f"),
         alt.Tooltip("ask:Q",           title="Ask",  format="$.2f"),
@@ -2050,8 +2051,28 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# Load config and seed data_source_choice into session_state BEFORE the
+# dynamic CSS block below reads it. Without this seed, the very first
+# render reads session_state before the segmented_control has had a
+# chance to populate it, so a Schwab-configured config.toml briefly
+# paints yahoo-green until the user interacts and triggers a rerun.
+from config import load_config, get_provider, get_schwab_config as _get_schwab_cfg
+_app_cfg = load_config()
+_cfg_provider = get_provider(_app_cfg)
+_cfg_schwab = _get_schwab_cfg(_app_cfg)
+_schwab_configured = (
+    bool(_cfg_schwab.get("app_key"))
+    and not _cfg_schwab["app_key"].startswith("your-")
+    and bool(_cfg_schwab.get("app_secret"))
+    and not _cfg_schwab["app_secret"].startswith("your-")
+)
+if "data_source_choice" not in st.session_state:
+    st.session_state["data_source_choice"] = (
+        "schwab" if (_cfg_provider == "schwab" and _schwab_configured) else "yahoo"
+    )
+
 # Primary (Scan) button color tracks the data-source dropdown live: green
-# for Yahoo Finance, blue for Schwab. Reads the selectbox widget key
+# for Yahoo Finance, blue for Schwab. Reads the widget key
 # (`data_source_choice`) — NOT the effective `data_source` — for two
 # reasons: (1) Streamlit populates widget-key session state BEFORE the
 # rerun begins, so the CSS at script-top sees the new value on the same
@@ -2181,33 +2202,19 @@ if _LOGO_DATA_URI:
         height=0, width=0,
     )
 
-# Load config once at startup (reads options-scanner/config.toml if present)
-from config import load_config, get_provider, get_schwab_config as _get_schwab_cfg
-_app_cfg = load_config()
-_cfg_provider = get_provider(_app_cfg)
-_cfg_schwab = _get_schwab_cfg(_app_cfg)
-
-# Schwab is "configured" when real credentials are present in config.toml
-_schwab_configured = (
-    bool(_cfg_schwab.get("app_key"))
-    and not _cfg_schwab["app_key"].startswith("your-")
-    and bool(_cfg_schwab.get("app_secret"))
-    and not _cfg_schwab["app_secret"].startswith("your-")
-)
-
 # Title-bar data source switch — pinned via CSS to the right of the
 # rescan pill so it's always visible without opening the sidebar.
+# Config loading + initial session_state seeding happened above (so the
+# dynamic button-color CSS picks up the right value on first render).
 def _source_label(s: str) -> str:
     if s == "yahoo":
         return "Yahoo Finance"
     return "Schwab (live)" if _schwab_configured else "Schwab (unconfigured)"
 
-_source_default = "schwab" if (_cfg_provider == "schwab" and _schwab_configured) else "yahoo"
 with st.container(key="data_source_pill"):
     _source_raw = st.segmented_control(
         "Data source",
         ["yahoo", "schwab"],
-        default=_source_default,
         format_func=_source_label,
         label_visibility="collapsed",
         key="data_source_choice",

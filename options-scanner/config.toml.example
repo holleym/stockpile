@@ -7,7 +7,7 @@
 # See SCHWAB_DATA_SOURCE.md for setup instructions.
 
 [data_source]
-provider = "yahoo"  # "yahoo" or "schwab"
+provider = "yahoo"  # default in dropdown, "yahoo" or "schwab"
 
 # ── Schwab credentials ──────────────────────────────────────────────────────
 # Required only when provider = "schwab".
