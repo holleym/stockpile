@@ -2605,32 +2605,28 @@ st.session_state["data_source"] = data_source
 st.session_state["schwab_config"] = _cfg_schwab if data_source == "schwab" else None
 
 
-# ── Page header ──────────────────────────────────────────────────────────
-# Sits inside the main canvas (not the fixed top bar) — gives the page a
-# proper title, subtitle, and the disclaimer chip.
-_header_left, _header_right = st.columns([3, 2], vertical_alignment="center")
-with _header_left:
-    section_header(
-        title="Options scanner",
-        subtitle=(
-            "Surface contracts whose implied volatility sits above (or below) "
-            "the fitted surface. Filter by DTE, delta, liquidity; export a "
-            "shareable HTML report."
-        ),
-        eyebrow="OPTION CHAIN · IV SURFACE · SPREADS",
+# ── Page header chips ────────────────────────────────────────────────────
+# The title + subtitle moved to the sidebar "About" panel to reclaim
+# vertical space on the main canvas. Disclaimer + source badge remain
+# inline at the top, right-aligned, since they're small and useful at-a-
+# glance context.
+_src_chip_color = _PROVIDER_COLORS.get(data_source, "#94a3b8")
+_src_chip_label = (
+    f"Source: {_PROVIDER_LABELS.get(data_source, data_source).upper()}"
+)
+st.markdown(
+    "<div style='display:flex; justify-content:flex-end; "
+    "align-items:center; gap:0.5rem; margin-bottom:0.5rem;'>"
+    + disclaimer_chip("Research tool · Not investment advice")
+    + (
+        f"<span style='display:inline-block; padding:0.2rem 0.65rem; "
+        f"border-radius:6px; font-size:0.78rem; font-weight:500; "
+        f"color:#FFFFFF; background-color:{_src_chip_color};'>"
+        f"{_src_chip_label}</span>"
     )
-with _header_right:
-    st.markdown(
-        "<div style='display:flex; justify-content:flex-end; "
-        "align-items:center; gap:0.5rem;'>"
-        + disclaimer_chip("Research tool · Not investment advice")
-        + badge(
-            f"Source: {_PROVIDER_LABELS.get(data_source, data_source).upper()}",
-            "info",
-        )
-        + "</div>",
-        unsafe_allow_html=True,
-    )
+    + "</div>",
+    unsafe_allow_html=True,
+)
 
 # Sidebar: an "About" panel — the legacy theme picker is gone (we now ship
 # one canonical design system). Add helpful links and a status indicator.
@@ -2654,9 +2650,12 @@ with st.sidebar:
     st.markdown("---")
     section_header("Data source", eyebrow="ACTIVE PROVIDER")
     _src_label = _source_label(data_source)
+    _src_color = _PROVIDER_COLORS.get(data_source, "#94a3b8")
     st.markdown(
-        f"<div style='font-size:0.86rem; color:#1E3A8A; margin-bottom:0.4rem;'>"
-        f"{badge(_src_label, 'info' if data_source == 'yahoo' else 'accent')}"
+        f"<div style='font-size:0.86rem; margin-bottom:0.4rem;'>"
+        f"<span style='display:inline-block; padding:0.2rem 0.65rem; "
+        f"border-radius:6px; font-weight:500; color:#FFFFFF; "
+        f"background-color:{_src_color};'>{_src_label}</span>"
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -2666,6 +2665,11 @@ with st.sidebar:
     )
     st.markdown("---")
     section_header("About", eyebrow="HOW THIS WORKS")
+    st.caption(
+        "Surface contracts whose implied volatility sits above (or below) "
+        "the fitted surface. Filter by DTE, delta, liquidity; export a "
+        "shareable HTML report."
+    )
     st.caption(
         "For every option in the chain, we fit a smooth volatility "
         "surface across strike and DTE, then rank contracts by how much "
