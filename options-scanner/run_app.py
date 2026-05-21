@@ -2455,25 +2455,43 @@ if "data_source_choice" not in st.session_state:
         "schwab" if (_cfg_provider == "schwab" and _schwab_configured) else "yahoo"
     )
 
-# Active state for the data-source pill picks up the primary blue — the
-# whole product follows one accent now, so we no longer recolor the
-# scan button per-source. The user can still tell which source is active
-# from the segmented-control selection state.
-_PRIMARY = PALETTE["primary"]
+# Primary buttons and the data-source pill's active state recolor based on
+# which data source is selected: green for Yahoo, blue for Schwab. Reads
+# `data_source_choice` (the widget key) — NOT the effective `data_source` —
+# so the color flips on the same rerun the dropdown changed, and clicking
+# Scan doesn't trigger spurious color flips.
+_BTN_COLORS = {
+    "yahoo":  ("#16a34a", "#15803d"),   # normal, hover
+    "schwab": ("#2563eb", "#1d4ed8"),
+}
+_btn_bg, _btn_hover = _BTN_COLORS.get(
+    st.session_state.get("data_source_choice", "yahoo"),
+    _BTN_COLORS["yahoo"],
+)
 st.html(
     f"""
     <style>
+    .stButton > button[kind="primary"],
+    button[data-testid="stBaseButton-primary"] {{
+        background-color: {_btn_bg} !important;
+        border-color: {_btn_bg} !important;
+    }}
+    .stButton > button[kind="primary"]:hover,
+    button[data-testid="stBaseButton-primary"]:hover {{
+        background-color: {_btn_hover} !important;
+        border-color: {_btn_hover} !important;
+    }}
     [class*="st-key-data_source_pill"] button[aria-pressed="true"],
     [class*="st-key-data_source_pill"] button[aria-selected="true"],
     [class*="st-key-data_source_pill"] button[data-testid*="Active"] {{
-        color: {_PRIMARY} !important;
-        border-color: {_PRIMARY} !important;
-        box-shadow: inset 0 0 0 1px {_PRIMARY} !important;
+        color: {_btn_bg} !important;
+        border-color: {_btn_bg} !important;
+        box-shadow: inset 0 0 0 1px {_btn_bg} !important;
     }}
     [class*="st-key-data_source_pill"] button[aria-pressed="true"] p,
     [class*="st-key-data_source_pill"] button[aria-selected="true"] p,
     [class*="st-key-data_source_pill"] button[data-testid*="Active"] p {{
-        color: {_PRIMARY} !important;
+        color: {_btn_bg} !important;
     }}
     </style>
     """
