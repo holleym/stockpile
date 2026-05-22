@@ -34,13 +34,55 @@ from options_scanner.display.spot_meta import (
 )
 from options_scanner.fetch import fetch_and_enrich
 from options_scanner.mc_ui import position_from_chain_row, render_mc_panel
+from options_scanner.recent_scans import build_label, load as load_recent, save as save_recent
 from options_scanner.ui_theme import badge, empty_state, metric_card, section_header
 
 
 def tab_single() -> None:
-    # ── Group 1: Ticker + flow ────────────────────────────────────────────────
+    # ── Recent Scans: pre-fill session state before any widget renders ────────
+    # When the user picks a recent scan, we stash it under "_s_recall" and
+    # rerun. On the next pass this block writes each field into the matching
+    # widget key so all widgets initialize from the correct values.
+    recall = st.session_state.pop("_s_recall", None)
+    if recall:
+        st.session_state["s_ticker"] = recall["ticker"]
+        st.session_state["s_flow"] = (
+            "Roll an existing position"
+            if recall.get("flow") == "roll"
+            else "Find new options"
+        )
+        # Shared filter group (Group 3) — applies to both flows.
+        st.session_state["s_min_dte"] = int(recall.get("min_dte", 30))
+        st.session_state["s_max_dte"] = int(recall.get("max_dte", 90))
+        st.session_state["s_min_oi"]  = int(recall.get("min_oi", 25))
+        st.session_state["s_min_vol"] = int(recall.get("min_vol", 10))
+        st.session_state["s_delta"]   = (
+            float(recall.get("delta_min", 0.10)),
+            float(recall.get("delta_max", 0.75)),
+        )
+        st.session_state["s_top"] = int(recall.get("top_n", 10))
+        if recall.get("flow") == "roll":
+            st.session_state["s_roll_type"]   = recall.get("roll_type", "call")
+            st.session_state["s_roll_strike"]  = float(recall.get("roll_strike", 0.0))
+            try:
+                from datetime import datetime as _dt
+                st.session_state["s_roll_exp"] = _dt.strptime(
+                    recall["roll_exp"], "%Y-%m-%d"
+                ).date()
+            except (KeyError, ValueError):
+                pass
+        else:
+            st.session_state["s_action"] = (
+                "Buy (IV-cheap candidates)"
+                if recall.get("buy")
+                else "Sell (IV-rich candidates)"
+            )
+            st.session_state["s_opt_type"] = recall.get("option_type", "Calls")
+
+    # ── Group 1: Ticker + flow + Recent Scans ─────────────────────────────────
+    _recent = load_recent()
     with st.container(border=True):
-        tc, fc = st.columns([1, 6])
+        tc, fc, rc = st.columns([1, 4, 2])
         with tc:
             ticker = st.text_input("Ticker", "AAPL", key="s_ticker")
         with fc:
@@ -50,6 +92,24 @@ def tab_single() -> None:
                 horizontal=True,
                 key="s_flow",
             )
+        with rc:
+            _placeholder = "— recent scans —"
+            _options = [_placeholder] + [build_label(e) for e in _recent]
+            _choice = st.selectbox(
+                "Recent Scans",
+                _options,
+                index=0,
+                key="s_recent_choice",
+                label_visibility="visible",
+            )
+            if _choice != _placeholder:
+                _idx = _options.index(_choice) - 1
+                st.session_state["_s_recall"] = _recent[_idx]
+                # Deleting the widget key resets it to index=0 (placeholder)
+                # on the next run. Setting it after render raises
+                # StreamlitAPIException — delete is the correct pattern.
+                del st.session_state["s_recent_choice"]
+                st.rerun()
     rolling = (flow == "Roll an existing position")
 
     # Defaults so the same scan code path handles both flows
@@ -254,6 +314,45 @@ def tab_single() -> None:
             "roll_strike": roll_strike if rolling else None,
             "roll_type": roll_type_sel if rolling else None,
         }
+
+        # Persist the scan parameters for the Recent Scans dropdown.
+        # Shared filters are saved for both flows so they can be fully
+        # restored on recall and so the dedup key distinguishes scans
+        # that differ only in OI/vol/DTE.
+        _shared = {
+            "min_dte":   int(min_dte),
+            "max_dte":   int(max_dte_inp),
+            "min_oi":    int(min_oi),
+            "min_vol":   int(min_vol),
+            "delta_min": delta_min,
+            "delta_max": delta_max,
+            "top_n":     int(top_n),
+        }
+        if rolling:
+            _entry = {
+                "flow":        "roll",
+                "ticker":      ticker_clean,
+                "roll_type":   roll_type_sel,
+                "roll_strike": roll_strike,
+                "roll_exp":    roll_exp.strftime("%Y-%m-%d"),
+                **_shared,
+            }
+        else:
+            _entry = {
+                "flow":        "find",
+                "ticker":      ticker_clean,
+                "buy":         buy,
+                "option_type": option_type,
+                "min_dte":     int(min_dte),
+                "max_dte":     int(max_dte_inp),
+                "min_oi":      int(min_oi),
+                "min_vol":     int(min_vol),
+                "delta_min":   delta_min,
+                "delta_max":   delta_max,
+                "top_n":       int(top_n),
+            }
+        _entry["label"] = build_label(_entry)
+        save_recent(_entry)
 
     # ── Display results (persists across re-runs until next scan) ─────────────
     res = st.session_state.get("single_results")
