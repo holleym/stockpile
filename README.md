@@ -141,6 +141,18 @@ cd stockpile
 uv sync
 ```
 
+### After a `git pull`
+
+`uv run` auto-syncs in most cases, so you can usually just re-run
+the same commands and uv handles the rest. If something looks off
+after pulling (import errors, missing modules, weird startup
+behavior), run `uv sync` once to force a clean re-sync:
+
+```bash
+git pull
+uv sync     # only needed if uv run misbehaves after the pull
+```
+
 ## Running the projects
 
 Always use `uv run` from the **repo root**. This ensures the correct
