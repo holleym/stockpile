@@ -1,7 +1,10 @@
-# Cost Basis Charts — YouTube Tutorial
+# Cost Basis Charts
 
-Visualize your stock cost basis over time, overlaid on Yahoo Finance historical prices,
-built from brokerage transaction exports using Claude Code.
+Visualize your stock cost basis over time, overlaid on Yahoo Finance
+historical prices, built from brokerage transaction exports using
+Claude Code.
+
+**Watch:** [Charts Your Broker Doesn't Show You (Using Claude Code)](https://youtu.be/LqroeMNC7AU)
 
 ## What this builds
 
@@ -38,11 +41,6 @@ already.
 - Brokerage transaction CSV — Schwab, Robinhood, Fidelity, or Merrill
   Lynch (same parsers as the Position Tracker project)
 - Yahoo Finance historical OHLC via `yfinance`
-
-## YouTube angle
-
-Full Claude Code workflow — describe the feature, iterate on the output visually,
-no manual coding required.
 
 ## Support
 

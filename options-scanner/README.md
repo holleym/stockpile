@@ -28,6 +28,10 @@ Data is sourced from **Yahoo Finance** (default, no setup) or the
 For repo-wide setup (`uv sync`, etc.) see the
 [root README](../README.md#setup).
 
+**Videos:**
+[Option Scanner by Claude (Python, GitHub)](https://youtu.be/0H7BGJ3rJoQ)
+· [Find the Best Options with Schwab and Claude](https://youtu.be/-MsAMYX0kAM)
+
 ## Web UI
 
 ```bash

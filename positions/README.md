@@ -10,7 +10,7 @@ tab across all your positions.
 
 Built entirely with [Claude Code](https://claude.ai/code) — no manual coding required.
 
-**Watch the setup video:** https://youtu.be/9uf3cyOWPBQ
+**Watch:** [Claude Built My Stock & Options Tracker in Google Sheets from my Schwab Transactions](https://youtu.be/9uf3cyOWPBQ)
 
 > **Beta:** This is new code under active development. Numbers may contain bugs —
 > verify anything important against your brokerage statements before acting on it.

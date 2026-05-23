@@ -17,6 +17,29 @@ tracker, cost basis charts, and shared parsing/finance utilities.
 > decision. The authors are not responsible for any trading losses or
 > other damages arising from use of this software.
 
+## Videos
+
+These tools were built live on YouTube using Claude Code. Watch to
+see how each tool was made and how to use it with your own brokerage
+data.
+
+### Stockpile tools
+
+| Video | Tool |
+|-------|------|
+| [Claude Built My Stock & Options Tracker in Google Sheets from my Schwab Transactions](https://youtu.be/9uf3cyOWPBQ) | positions tracker |
+| [Charts Your Broker Doesn't Show You (Using Claude Code)](https://youtu.be/LqroeMNC7AU) | cost-basis-charts |
+| [Option Scanner by Claude (Python, GitHub)](https://youtu.be/0H7BGJ3rJoQ) | options-scanner |
+| [Find the Best Options with Schwab and Claude](https://youtu.be/-MsAMYX0kAM) | options-scanner — Schwab data source |
+
+### Related — Yahoo Finance CLI series
+
+A companion series on building a Yahoo Finance CLI with Claude Code
+(separate repo, [printingpress.dev](https://printingpress.dev)):
+
+- [Yahoo Finance CLI with Claude | Part 1 of 3](https://youtu.be/fvHzGLpac14)
+- [Stock Report Webapp using Yahoo Finance CLI, Made by Claude](https://youtu.be/o0re4J8iiNo)
+
 ## Projects
 
 - **shared** — pip-installable package (`stocks-shared`): CSV parsers
