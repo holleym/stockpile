@@ -121,19 +121,6 @@ button[data-testid="stBaseButton-primary"]:hover {{
 }}
 </style>""", unsafe_allow_html=True)
 
-# Brand wordmark pinned to the top header bar — needs st.markdown so
-# position:fixed in styles.css applies to the main document viewport.
-st.markdown(
-    """
-    <div class='osc-wordmark-overlay' aria-hidden='true'>
-      <span class='osc-wm-dot'></span>
-      <span class='osc-wm-brand'>STOCKPILE</span>
-      <span class='osc-wm-suffix'>· OPTIONS SCANNER</span>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-
 # Sidebar-state observer: watches the actual sidebar element's rendered
 # width and writes data-sidebar-open onto body so the header-bar CSS
 # above can respond. Identical to the previous implementation — Streamlit
@@ -276,6 +263,20 @@ with st.sidebar:
 # any deferred code path references it. With the new design system in
 # place this is a no-op.
 _apply_theme("Default")
+
+# Brand wordmark — now in normal document flow just below the fixed
+# title bar (rescan / data-source / surface-fit pills), so it scrolls
+# away with the page instead of staying pinned.
+st.markdown(
+    """
+    <div class='osc-wordmark-inline'>
+      <span class='osc-wm-dot'></span>
+      <span class='osc-wm-brand'>STOCKPILE</span>
+      <span class='osc-wm-suffix'>· OPTIONS SCANNER</span>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 (
     panel_single, panel_gex, panel_portfolio,
