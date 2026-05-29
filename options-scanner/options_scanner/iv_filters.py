@@ -40,7 +40,7 @@ def _spread_pct(df: pd.DataFrame, max_pct: float = 0.50) -> pd.DataFrame:
     return df[spread.fillna(float("inf")) <= max_pct]
 
 
-def _delta_range(df: pd.DataFrame, lo: float = 0.05, hi: float = 0.95) -> pd.DataFrame:
+def _delta_range(df: pd.DataFrame, lo: float = 0.10, hi: float = 0.95) -> pd.DataFrame:
     """Keep options with |delta| in [lo, hi]."""
     if "delta" not in df.columns:
         return df
@@ -81,7 +81,7 @@ REGISTRY: dict[str, dict] = {
     },
     "delta_range": {
         "fn":       _delta_range,
-        "defaults": {"lo": 0.05, "hi": 0.95},
+        "defaults": {"lo": 0.10, "hi": 0.95},
         "label":    "Delta range",
     },
     "min_oi": {
@@ -96,11 +96,15 @@ REGISTRY: dict[str, dict] = {
     },
 }
 
-# Default: OTM-only + spread ≤ 50% + delta 0.05–0.95
+# Default: OTM-only + spread ≤ 50% + delta 0.10–0.95. The 0.10 floor
+# drops far-OTM wings (penny premium, wide spreads, unreliable broker
+# IV) that otherwise dominate the surface curvature; 0.95 is a guard
+# for the non-default case where OTM-only is off (it never binds while
+# OTM-only caps |delta| near 0.5).
 DEFAULT_CONFIG: SurfaceFilterConfig = (
     ("otm_only",    frozenset()),
     ("spread_pct",  frozenset({("max_pct", 0.50)})),
-    ("delta_range", frozenset({("lo", 0.05), ("hi", 0.95)})),
+    ("delta_range", frozenset({("lo", 0.10), ("hi", 0.95)})),
 )
 
 

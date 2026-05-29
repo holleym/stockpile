@@ -10,8 +10,10 @@ The defaults (global-polynomial fit + raw IV+pp score + OTM/spread/
 delta filters) reproduce the original behavior exactly, so nothing
 changes until the caller selects another algorithm or score.
 
-Surface model (default algorithm): IV ≈ a + b·m + c·m² + d·√T + e·m·√T
-where m = log(K/S) and T = DTE/365. Options sitting above the surface
+Surface model (default algorithm):
+IV ≈ a + b·m + c·m² + d·√T + e·m·√T + f·m²·√T
+where m = log(K/S) and T = DTE/365 (the f·m²·√T term lets curvature
+vary with maturity). Options sitting above the surface
 are IV-rich — candidates to sell; below, IV-cheap.
 
 Output is a screening heuristic, not a mispricing claim.

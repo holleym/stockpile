@@ -5,9 +5,9 @@ one reference line, the table's top picks highlighted (large outlined
 dots with rank labels), and a spot reference rule.
 
 Reference line (green solid):
-  IV surface (IV ≈ a+b·m+c·m²+d·√T+e·m·√T) fitted to all dropdown
+  IV surface (IV ≈ a+b·m+c·m²+d·√T+e·m·√T+f·m²·√T) fitted to all dropdown
   expirations using the configured surface filters (default: OTM-only,
-  spread ≤ 50%, Δ 0.05–0.95). Dot colors and IV+pp both measure
+  spread ≤ 50%, Δ 0.10–0.95). Dot colors and IV+pp both measure
   distance from this line, so they are fully consistent.
 
 The pick highlighting and ranking come from compute.top_ranks — the same
@@ -136,9 +136,21 @@ def show_iv_chart(df: pd.DataFrame, spot: float, mode: str,
             _src = (df_full[df_full["type"] == mode]
                     if mode in ("call", "put") else df_full)
             overlay_df = _prep(_src)
+            _support_src = df_full
         else:
             overlay_df = chart_df
-        _render_all_expirations(overlay_df, spot, ticker, mode)
+            _support_src = chart_df
+        # Strike range that actually anchored the fit (both wings, every
+        # expiration). Beyond it the global surface is unsupported
+        # extrapolation — the source of the spurious far-OTM/ITM humps — so
+        # the overlay clips its lines to this span.
+        fit_range = None
+        if "in_fit" in _support_src.columns:
+            _anchors = _support_src[_support_src["in_fit"].astype(bool)]
+            if not _anchors.empty:
+                fit_range = (float(_anchors["strike"].min()),
+                             float(_anchors["strike"].max()))
+        _render_all_expirations(overlay_df, spot, ticker, mode, fit_range)
         return
 
     chosen_exp = st.selectbox(
@@ -395,7 +407,9 @@ def show_iv_chart(df: pd.DataFrame, spot: float, mode: str,
 
 
 def _render_all_expirations(frame: pd.DataFrame, spot: float,
-                            ticker: str, mode: str) -> None:
+                            ticker: str, mode: str,
+                            fit_range: tuple[float, float] | None = None
+                            ) -> None:
     """Overlay every expiration's fitted surface line on one chart.
 
     Each line is one expiration's `iv_fitted` vs. strike, colored by DTE —
@@ -403,11 +417,25 @@ def _render_all_expirations(frame: pd.DataFrame, spot: float,
     reflects whatever algorithm produced it: in Global mode the lines
     share one surface (curvature in common, fanned by √T); in Per-expiry
     mode each line is that slice's own smile. `frame` must already carry
-    the `_prep` display columns (FittedIV%, IV%)."""
+    the `_prep` display columns (FittedIV%, IV%).
+
+    `fit_range` (lo, hi strike) clips the lines to the strikes that
+    anchored the fit. Past that span the global surface is pure
+    extrapolation — the cause of the spurious far-OTM/ITM humps — so we
+    simply don't draw it."""
     frame = frame.dropna(subset=["FittedIV%", "strike"]).copy()
     if frame.empty:
         st.info("No fitted surface to display for this scan.")
         return
+    clip_note = ""
+    if fit_range is not None:
+        lo, hi = fit_range
+        in_range = frame[(frame["strike"] >= lo) & (frame["strike"] <= hi)]
+        if not in_range.empty:
+            frame = in_range
+            clip_note = (f" Lines are drawn only across the strike range that "
+                         f"anchored the fit (${lo:,.0f}–${hi:,.0f}); past it "
+                         f"the surface is unsupported extrapolation.")
     frame = frame.sort_values(["expiration", "strike"])
     frame["ExpDate"] = frame["expiration"].apply(
         lambda d: datetime.strptime(d, "%Y-%m-%d").strftime("%b %d '%y"))
@@ -484,7 +512,8 @@ def _render_all_expirations(frame: pd.DataFrame, spot: float,
         " In <b>Global</b> fit every line comes from one surface fit across"
         " all expirations, so they share curvature and fan out by term"
         " structure; in <b>Per-expiry</b> fit each line is that expiration's"
-        " own smile. Vertical dashed line = current spot price."
+        " own smile." + clip_note +
+        " Vertical dashed line = current spot price."
         "</div>",
         unsafe_allow_html=True,
     )

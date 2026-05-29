@@ -103,8 +103,10 @@ pipeline to remove quotes that would distort the surface:
   the tradeable range
 - **Spread filter** — wide bid-ask spreads signal illiquid or
   stale quotes; those options are dropped from the regression
-- **Delta range** — options with |Δ| outside 0.05–0.95 are
-  excluded by default
+- **Delta range** — options with |Δ| outside 0.10–0.95 are
+  excluded by default; the 0.10 floor drops far-OTM wings whose
+  thin, wide-spread quotes (and unreliable broker IV) would
+  otherwise distort the surface curvature
 
 These defaults are configurable under the **Advanced surface fit**
 expander in the Single Ticker tab (the **Fit:** preset toggle picks

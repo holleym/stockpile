@@ -1,7 +1,7 @@
 """Tests for iv_surface.compute_iv_excess.
 
 The surface model is:
-    IV ≈ a + b·m + c·m² + d·√T + e·m·√T
+    IV ≈ a + b·m + c·m² + d·√T + e·m·√T + f·m²·√T
 where m = log(K/S) and T = DTE/365.
 
 These tests verify:
