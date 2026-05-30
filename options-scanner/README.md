@@ -31,6 +31,8 @@ For repo-wide setup (`uv sync`, etc.) see the
 **Videos:**
 [Option Scanner by Claude (Python, GitHub)](https://youtu.be/0H7BGJ3rJoQ)
 · [Find the Best Options with Schwab and Claude](https://youtu.be/-MsAMYX0kAM)
+· [Find the Best Covered Call — Options Scanner](https://youtu.be/WVGH-Hjbnjs?si=w6FqHtbGoJsx887d)
+· [I Asked Claude to Roll My Covered Call](https://youtu.be/qBNh6DIUSQQ?si=6M5g8Eu0mnODyb3g)
 
 ## Web UI
 
