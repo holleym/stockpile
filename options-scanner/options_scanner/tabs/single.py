@@ -620,7 +620,8 @@ def tab_single() -> None:
                    provider=st.session_state.get("scan_provider", "yahoo"),
                    earnings_dates=res.get("earnings_dates"),
                    surface_filters=res.get("surface_filters"),
-                   df_full=df_fit_full)
+                   df_full=df_fit_full,
+                   delta_range=(res["delta_min"], res["delta_max"]))
 
     show_surface_diagnostics(df_fit_full, res.get("surface_filters"),
                              res.get("algo_config"))

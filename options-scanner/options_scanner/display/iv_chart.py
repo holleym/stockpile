@@ -24,6 +24,7 @@ import streamlit as st
 
 from options_scanner.compute.top_ranks import compute_top_ranks
 from options_scanner.display.scan_stamp import scan_stamp_color, scan_stamp_text
+from options_scanner.display.iv_surface_3d import render_iv_surface_3d
 
 
 _PROVIDER_LINE = {
@@ -55,7 +56,8 @@ def show_iv_chart(df: pd.DataFrame, spot: float, mode: str,
                   min_vol: int = 0, provider: str = "yahoo",
                   earnings_dates: list | None = None,
                   surface_filters: tuple | None = None,
-                  df_full: pd.DataFrame | None = None) -> None:
+                  df_full: pd.DataFrame | None = None,
+                  delta_range: tuple[float, float] | None = None) -> None:
     """Layered chart: per-expiration smile with the table's top-N picks
     highlighted. Background dots are the rest of the chain at the selected
     expiration — filled if they anchored the surface fit, hollow if the
@@ -137,20 +139,27 @@ def show_iv_chart(df: pd.DataFrame, spot: float, mode: str,
             "<h5 style='margin:0 0 5px 0'>Volatility surface</h5>",
             unsafe_allow_html=True,
         )
+    # The 3D view needs the full multi-expiration chain (Single tab only;
+    # the Portfolio tab omits df_full).
+    _has_full = df_full is not None and not df_full.empty
+    _view_opts = (["Single expiration", "All expirations", "3D surface"]
+                  if _has_full else ["Single expiration", "All expirations"])
     with h2:
         view = st.radio(
-            "View", ["Single expiration", "All expirations"],
+            "View", _view_opts,
             horizontal=True, key=f"{key_prefix}_surface_view",
             label_visibility="collapsed",
             help="Single = one expiration's smile vs. its surface line. "
                  "All expirations = every expiration's fitted surface line "
-                 "on one chart, colored by DTE — the whole term structure.",
+                 "on one chart, colored by DTE. 3D surface = the whole chain "
+                 "as strike × DTE × IV — drag to rotate.",
         )
 
-    # All-expirations overlay: one fitted line per expiration on a shared
-    # chart. Uses the full chain when available (wider strike span), else
-    # the displayed frame (e.g. the Portfolio tab, which omits df_full).
-    if view == "All expirations":
+    # Multi-expiration views ("All expirations" 2D fan and "3D surface")
+    # share the same source frame + fit-range setup. Both use the full chain
+    # when available (wider strike span), else the displayed frame (e.g. the
+    # Portfolio tab, which omits df_full).
+    if view in ("All expirations", "3D surface"):
         if df_full is not None and not df_full.empty:
             _src = (df_full[df_full["type"] == mode]
                     if mode in ("call", "put") else df_full)
@@ -162,14 +171,18 @@ def show_iv_chart(df: pd.DataFrame, spot: float, mode: str,
         # Strike range that actually anchored the fit (both wings, every
         # expiration). Beyond it the global surface is unsupported
         # extrapolation — the source of the spurious far-OTM/ITM humps — so
-        # the overlay clips its lines to this span.
+        # the views clip to this span.
         fit_range = None
         if "in_fit" in _support_src.columns:
             _anchors = _support_src[_support_src["in_fit"].astype(bool)]
             if not _anchors.empty:
                 fit_range = (float(_anchors["strike"].min()),
                              float(_anchors["strike"].max()))
-        _render_all_expirations(overlay_df, spot, ticker, mode, fit_range)
+        if view == "3D surface":
+            render_iv_surface_3d(overlay_df, spot, ticker, mode, buy,
+                                 fit_range, delta_range=delta_range)
+        else:
+            _render_all_expirations(overlay_df, spot, ticker, mode, fit_range)
         return
 
     chosen_exp = st.selectbox(
