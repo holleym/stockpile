@@ -32,6 +32,23 @@ _PROVIDER_LINE = {
 }
 
 
+def _is_monthly_expiration(exp_str: str) -> bool:
+    """Standard monthly options expire the 3rd Friday of the month.
+
+    Inferred from the date since the normalized chain carries no
+    weekly/monthly flag (Schwab's API has expirationType but we don't
+    plumb it through; Yahoo has none). A heuristic — holiday-shifted or
+    AM-settled expirations can deviate — but correct for the vast
+    majority of equity options.
+    """
+    try:
+        d = datetime.strptime(exp_str, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return False
+    # 3rd Friday = the Friday in day-of-month range 15–21.
+    return d.weekday() == 4 and 15 <= d.day <= 21
+
+
 def show_iv_chart(df: pd.DataFrame, spot: float, mode: str,
                   min_oi: int, top_n: int, buy: bool,
                   ticker: str = "", key_prefix: str = "s",
@@ -161,13 +178,15 @@ def show_iv_chart(df: pd.DataFrame, spot: float, mode: str,
         index=default_idx,
         format_func=lambda d: (
             f"{'★ ' if d in best_exps else ''}{exp_labels[d]}"
+            f"{' Ⓜ' if _is_monthly_expiration(d) else ''}"
             f"  ({pick_counts[d]} pick"
             f"{'s' if pick_counts[d] != 1 else ''})"
         ),
         key=f"{key_prefix}_chart_exp",
         help=("Each expiration has its own volatility smile. The number "
               "in parentheses is how many of the table's top picks live "
-              "at that expiration."),
+              "at that expiration. Ⓜ marks standard monthly expirations "
+              "(3rd Friday) — typically the most liquid."),
         label_visibility="collapsed",
     )
 
