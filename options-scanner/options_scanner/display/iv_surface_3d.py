@@ -71,18 +71,13 @@ def render_iv_surface_3d(frame: pd.DataFrame, spot: float, ticker: str,
     )
 
     # Diverging IV+pp color scale, matching the 2D chart (sell: green rich /
-    # red cheap; buy flips). Computed from the FULL frame so colors don't
-    # shift when toggling the delta band.
+    # red cheap; buy flips). The saturation bound is computed per visible set
+    # inside _chain_traces — basing it on the full frame let a few wild-winged
+    # contracts wash the near-ATM band dots out to mid-gray.
     if buy:
         ivpp_scale = [[0.0, "#22c55e"], [0.5, "#cbd5e1"], [1.0, "#ef4444"]]
     else:
         ivpp_scale = [[0.0, "#ef4444"], [0.5, "#cbd5e1"], [1.0, "#22c55e"]]
-    # Saturate the diverging scale near the bulk of |IV+pp| (≈p90) rather
-    # than the single most extreme contract, so ordinary rich/cheap dots
-    # pick up real color instead of washing out to mid-gray.
-    _abs_pp = frame["IV+pp"].abs()
-    excess_max = float(np.nanpercentile(_abs_pp, 90)) if len(_abs_pp) else 1.0
-    excess_max = max(excess_max, 1.0)
 
     # Robust IV (z) band: clamp to ~p1–p99 so a couple of extreme-wing
     # contracts don't squash the surface into a thin flat sheet. Computed
@@ -133,6 +128,13 @@ def render_iv_surface_3d(frame: pd.DataFrame, spot: float, ticker: str,
     def _chain_traces(sub: pd.DataFrame, visible: bool):
         """Build (mesh? + dots) traces for one frame; returns (list, mesh_ok)."""
         traces = []
+        # Per-view IV+pp color saturation (≈p90 of |IV+pp| in this view),
+        # shared by the surface tint and the dots so they read on one scale.
+        # Full-frame scaling washed the modest near-ATM band dots out to gray,
+        # since deep-wing contracts carry far larger IV+pp.
+        _pp_abs = sub["IV+pp"].abs()
+        cmax = float(np.nanpercentile(_pp_abs, 90)) if len(_pp_abs) else 1.0
+        cmax = max(cmax, 1.0)
         n_exp = sub["expiration"].nunique()
         n_strk = sub["strike"].nunique()
         mesh_ok = n_exp >= 2 and n_strk >= 3 and "FittedIV%" in sub.columns
@@ -143,23 +145,27 @@ def render_iv_surface_3d(frame: pd.DataFrame, spot: float, ticker: str,
                 mesh_src = mesh_src[mesh_src["strike"].between(lo, hi)]
             grid = mesh_src.pivot_table(index="dte", columns="strike",
                                         values="FittedIV%", aggfunc="mean")
+            # Parallel IV+pp grid (actual − fitted) on the same axes — used to
+            # tint the plane: green where actual IV sits above it (rich), red
+            # where below (cheap). Interpolated along strike (like the height
+            # grid) so the color is a smooth gradient, not a sparse patchwork.
+            cgrid = (mesh_src.pivot_table(index="dte", columns="strike",
+                                          values="IV+pp", aggfunc="mean")
+                     .reindex(index=grid.index, columns=grid.columns))
             if grid.shape[0] >= 2 and grid.shape[1] >= 3:
                 grid = grid.interpolate(axis=1, limit_area="inside")
+                cgrid = cgrid.interpolate(axis=1, limit_area="inside")
                 traces.append(go.Surface(
                     x=grid.columns.values, y=grid.index.values, z=grid.values,
-                    opacity=0.8, showscale=False, colorscale="Viridis",
+                    # Height = fitted (expected) IV; color = IV+pp deviation.
+                    surfacecolor=cgrid.values, colorscale=ivpp_scale,
+                    cmin=-cmax, cmax=cmax, opacity=0.9, showscale=False,
                     hoverinfo="skip", name="Fitted surface", visible=visible,
-                    # Shaded relief so skew/term-structure curvature reads as
-                    # 3D shape instead of a flat tinted plane.
-                    lighting=dict(ambient=0.55, diffuse=0.85, specular=0.18,
-                                  roughness=0.55, fresnel=0.1),
+                    # Lighting gives the plane its shape now that color encodes
+                    # deviation rather than height.
+                    lighting=dict(ambient=0.6, diffuse=0.8, specular=0.12,
+                                  roughness=0.6, fresnel=0.1),
                     lightposition=dict(x=10000, y=10000, z=8000),
-                    # Elevation lines on the surface (topo-map effect) — the
-                    # single biggest "this surface has shape" cue.
-                    contours=dict(z=dict(
-                        show=True, usecolormap=True, width=2,
-                        highlight=True, highlightcolor="#ffffff",
-                    )),
                 ))
             else:
                 mesh_ok = False
@@ -177,11 +183,12 @@ def render_iv_surface_3d(frame: pd.DataFrame, spot: float, ticker: str,
         is_top = (sub["is_top"].to_numpy() if "is_top" in sub.columns
                   else np.zeros(len(sub), dtype=bool))
         sizes = np.where(is_top, 9, 4)
+
         traces.append(go.Scatter3d(
             x=sub["strike"], y=sub["dte"], z=sub["IV%"], mode="markers",
             marker=dict(
                 size=sizes, color=sub["IV+pp"], colorscale=ivpp_scale,
-                cmin=-excess_max, cmax=excess_max,
+                cmin=-cmax, cmax=cmax,
                 colorbar=dict(
                     title=dict(text="IV+pp", font=dict(color=_AXIS_FONT)),
                     tickfont=dict(color=_AXIS_FONT),
@@ -340,11 +347,12 @@ def render_iv_surface_3d(frame: pd.DataFrame, spot: float, ticker: str,
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    note = ("Strike × DTE × IV. Dots are actual contract IV (colored by "
-            "IV+pp — green rich, red cheap); ")
-    note += ("the translucent mesh is the fitted surface. "
+    note = ("Strike × DTE × IV. Dots are actual contract IV, colored by "
+            "IV+pp (green rich, red cheap). ")
+    note += ("The surface is the fitted (expected) IV, tinted the same way — "
+             "green where actual IV runs above it, red where below. "
              if mesh_ok else
-             "the fitted mesh is hidden (needs ≥2 expirations and ≥3 "
+             "The fitted surface is hidden (needs ≥2 expirations and ≥3 "
              "strikes). ")
     if "is_top" in frame.columns and bool(frame["is_top"].any()):
         note += ("Numbered, enlarged dots are the top picks — the number "
