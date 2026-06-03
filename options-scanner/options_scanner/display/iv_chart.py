@@ -181,7 +181,8 @@ def show_iv_chart(df: pd.DataFrame, spot: float, mode: str,
                              float(_anchors["strike"].max()))
         if view == "3D surface":
             render_iv_surface_3d(overlay_df, spot, ticker, mode, buy,
-                                 fit_range, delta_range=delta_range)
+                                 fit_range, delta_range=delta_range,
+                                 min_oi=min_oi, min_vol=min_vol, top_n=top_n)
         else:
             _render_all_expirations(overlay_df, spot, ticker, mode, fit_range)
         return
