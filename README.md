@@ -79,6 +79,10 @@ A browser tab opens at http://localhost:8501. Type a ticker on the
 **Single Ticker** tab and hit Scan, or drag a brokerage CSV onto the
 **Portfolio** tab.
 
+To also start the live trading dashboard — it appears as a **Live Charts**
+tab in the scanner — run `uv run run.py` instead of the `streamlit`
+command above.
+
 For setup details, brokerage CSV configuration, and tool-specific
 commands, see each tool's README linked above.
 
