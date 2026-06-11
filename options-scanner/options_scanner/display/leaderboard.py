@@ -107,7 +107,7 @@ def render_leaderboard(results: list[dict], mode: str, min_oi: int,
 
     `mode` is "call", "put", or "both" (both renders a Calls and a Puts
     leaderboard). `buy` flips the ranking so IV-cheap contracts float to
-    the top. No-op when nothing qualifies on a side.
+    the top. Shows an explanatory notice when nothing qualifies at all.
     """
     sides = [mode] if mode in ("call", "put") else ["call", "put"]
     headings = {"call": "Calls", "put": "Puts"}
@@ -124,6 +124,15 @@ def render_leaderboard(results: list[dict], mode: str, min_oi: int,
         _render_table(board, side, min_vol)
 
     if not rendered_any:
+        st.info(
+            f"No contracts passed the leaderboard filters "
+            f"(Min OI ≥ {min_oi}, Min Vol ≥ {min_vol}"
+            + (f", |delta| {delta_range[0]:.2f}–{delta_range[1]:.2f}"
+               if delta_range is not None else "")
+            + "). Try loosening Min OI / Min Vol — note Vol is *today's* "
+              "volume, which is 0 for every contract before the market has "
+              "traded."
+        )
         return
     st.caption("Shaded rows are each ticker's top pick; other rows fill in "
                "the next-richest contracts across the basket.")
