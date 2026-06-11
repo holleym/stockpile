@@ -46,10 +46,8 @@ from options_scanner.ui_theme import (
 
 
 # Surface-fit presets — shared by the preset pill and the advanced section
-# (which renders below the Scan button in tab_single).
-_V2_FILTERS_SF: SurfaceFilterConfig = FILTER_DEFAULT + (
-    ("exclude_earnings", frozenset()),
-)
+# (which renders below the Scan button in tab_single). Both presets use
+# the default filters, which include exclude_earnings as of 2026-06.
 _SF_PRESETS = {
     "Global": (
         FILTER_DEFAULT,
@@ -57,7 +55,7 @@ _SF_PRESETS = {
         ("raw_pp", frozenset()),
     ),
     "Per-expiry": (
-        _V2_FILTERS_SF,
+        FILTER_DEFAULT,
         ("per_expiration", frozenset({("weights", "inv_spread")})),
         ("zscore", frozenset()),
     ),
@@ -76,7 +74,8 @@ def _surface_fit_controls() -> str:
             key="s_sf_preset",
             help="Surface fit. Global = one polynomial across the chain + "
                  "raw IV+pp. Per-expiry (LGbengs) = per-expiration "
-                 "spread-weighted fit, earnings excluded, ranked by z-score.",
+                 "spread-weighted fit, ranked by z-score. Both exclude "
+                 "earnings-spanning options from the fit.",
         )
     return preset
 
@@ -284,11 +283,19 @@ def tab_single() -> None:
                                            key="s_sf_use_delta")
                 sf_use_min_oi = st.checkbox("Min OI for fit", value=False,
                                             key="s_sf_use_min_oi")
-                sf_excl_earn = st.checkbox("Exclude earnings", value=False,
+                sf_excl_earn = st.checkbox("Exclude earnings", value=True,
                                            key="s_sf_excl_earn",
                                            help="Drop earnings-spanning options "
                                                 "from the fit — their IV premium "
                                                 "is legitimate event risk.")
+                sf_fresh = st.checkbox("Fresh quotes only", value=False,
+                                       key="s_sf_fresh",
+                                       help="Drop contracts that haven't "
+                                            "traded in days and show no "
+                                            "volume today — their broker IV "
+                                            "is likely stale. Yahoo only; "
+                                            "Schwab/Moomoo rows pass "
+                                            "through.")
             with sf2:
                 sf_spread_pct = st.number_input(
                     "Max spread % of mid", value=50, min_value=1, max_value=200,
@@ -323,6 +330,8 @@ def tab_single() -> None:
                 _sf.append(("min_oi", frozenset({("min_oi", sf_min_oi_val)})))
             if sf_excl_earn:
                 _sf.append(("exclude_earnings", frozenset()))
+            if sf_fresh:
+                _sf.append(("fresh_quotes", frozenset()))
             surface_filter_config: SurfaceFilterConfig = tuple(_sf)
 
             # ── Algorithm + weighting ────────────────────────────────────────
@@ -339,12 +348,27 @@ def tab_single() -> None:
                         "available yet — using the global polynomial.")
                 algo_name = "global_poly"
             weights = a2.selectbox(
-                "Fit weighting", ["none", "oi", "inv_spread"],
+                "Fit weighting", ["none", "oi", "inv_spread", "vega"],
                 format_func={"none": "Equal", "oi": "By open interest",
-                             "inv_spread": "By 1 / spread"}.get,
+                             "inv_spread": "By 1 / spread",
+                             "vega": "By vega"}.get,
                 key="s_sf_weights",
             )
-            algo_config = (algo_name, frozenset({("weights", weights)}))
+            robust = st.selectbox(
+                "Robust fit (outlier handling)",
+                ["none", "huber", "tukey"],
+                format_func={"none": "Off — plain least squares",
+                             "huber": "Huber — downweight outliers",
+                             "tukey": "Tukey — reject far outliers"}.get,
+                key="s_sf_robust",
+                help="Re-fits the surface a few times, reducing the "
+                     "influence of contracts far from it — so a stale "
+                     "high-IV print can't drag the surface toward "
+                     "itself. Huber softens outliers; Tukey ignores "
+                     "extreme ones entirely.",
+            )
+            algo_config = (algo_name, frozenset({("weights", weights),
+                                                 ("robust", robust)}))
 
             # ── Score ────────────────────────────────────────────────────────
             score_names = list(iv_scores.REGISTRY.keys())

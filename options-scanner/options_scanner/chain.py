@@ -1,12 +1,21 @@
 """Fetch and enrich option chain data."""
 
 import logging
-import math
 from datetime import date, datetime
 
 import pandas as pd
 
 from options_scanner.chain_common import build_option_row, safe_float, safe_int
+# Historical aliases — the implementation lives in
+# stocks_shared.black_scholes; tests and spreads.py import these names.
+from stocks_shared.black_scholes import (
+    bs_delta as _bs_delta,
+    bs_gamma as _bs_gamma,
+    bs_theta as _bs_theta,
+    bs_vega as _bs_vega,
+    norm_cdf as _norm_cdf,
+    norm_pdf as _norm_pdf,
+)
 from stocks_shared.yahoo import fetch_live_price, normalize_ticker
 
 log = logging.getLogger(__name__)
@@ -14,29 +23,17 @@ log = logging.getLogger(__name__)
 _RISK_FREE_RATE = 0.045
 
 
-def _norm_cdf(x: float) -> float:
-    return 0.5 * math.erfc(-x / math.sqrt(2))
-
-
-def _norm_pdf(x: float) -> float:
-    return math.exp(-0.5 * x * x) / math.sqrt(2 * math.pi)
-
-
-def _bs_delta(S: float, K: float, T: float, r: float,
-              sigma: float, opt_type: str) -> float:
-    if T <= 0 or sigma < 0.001:
-        if opt_type == "call":
-            return 1.0 if S > K else 0.0
-        return -1.0 if S < K else 0.0
-    d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
-    return _norm_cdf(d1) if opt_type == "call" else _norm_cdf(d1) - 1.0
-
-
-def _bs_gamma(S: float, K: float, T: float, r: float, sigma: float) -> float:
-    if T <= 0 or sigma < 0.001 or S <= 0:
-        return 0.0
-    d1 = (math.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
-    return _norm_pdf(d1) / (S * sigma * math.sqrt(T))
+def _trade_age_days(last_trade) -> float:
+    """Days since a yfinance lastTradeDate timestamp; NaN if unusable."""
+    try:
+        if last_trade is None or pd.isna(last_trade):
+            return float("nan")
+        ts = pd.Timestamp(last_trade)
+        now = pd.Timestamp.now(tz=ts.tz) if ts.tz is not None \
+            else pd.Timestamp.now()
+        return float((now - ts).total_seconds()) / 86400.0
+    except (TypeError, ValueError):
+        return float("nan")
 
 
 def _fetch_chain_yahoo(ticker: str, opt_type: str = "both",
@@ -91,7 +88,10 @@ def _fetch_chain_yahoo(ticker: str, opt_type: str = "both",
                 iv = safe_float(row.get("impliedVolatility"))
                 delta = _bs_delta(spot, K, T, _RISK_FREE_RATE, iv, side)
                 gamma = _bs_gamma(spot, K, T, _RISK_FREE_RATE, iv)
+                theta = _bs_theta(spot, K, T, _RISK_FREE_RATE, iv, side)
+                vega = _bs_vega(spot, K, T, _RISK_FREE_RATE, iv)
                 built = build_option_row(
+                    last_trade_days=_trade_age_days(row.get("lastTradeDate")),
                     side=side, strike=K, expiration=exp_str,
                     dte=dte, spot=spot,
                     bid=safe_float(row.get("bid")),
@@ -99,6 +99,7 @@ def _fetch_chain_yahoo(ticker: str, opt_type: str = "both",
                     mid=0.0,
                     last=safe_float(row.get("lastPrice")),
                     iv=iv, delta=delta, gamma=gamma,
+                    theta=theta, vega=vega,
                     open_interest=safe_int(row.get("openInterest")),
                     volume=safe_int(row.get("volume")),
                 )

@@ -1,7 +1,9 @@
 """Yahoo Finance helpers: live prices, option chains, historical OHLC, and BS pricing."""
 
 import re
-from math import erfc, exp, isfinite, log, sqrt
+from math import isfinite, sqrt
+
+from stocks_shared.black_scholes import bs_price
 
 _price_cache: dict[str, float | None] = {}
 _chain_cache: dict[tuple[str, str], object] = {}
@@ -85,19 +87,9 @@ def fetch_option_market_value(ticker: str, opt_type: str, expiration_str: str,
         return None
 
 
-def _norm_cdf(x: float) -> float:
-    return 0.5 * erfc(-x / sqrt(2))
-
-
-def bs_option_price(S: float, K: float, T: float, r: float, sigma: float, opt_type: str) -> float:
-    """Black-Scholes price for a European call or put."""
-    if T <= 0:
-        return max(0.0, S - K) if opt_type == "Call" else max(0.0, K - S)
-    d1 = (log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * sqrt(T))
-    d2 = d1 - sigma * sqrt(T)
-    if opt_type == "Call":
-        return S * _norm_cdf(d1) - K * exp(-r * T) * _norm_cdf(d2)
-    return K * exp(-r * T) * _norm_cdf(-d2) - S * _norm_cdf(-d1)
+# Black-Scholes price for a European call or put; the implementation
+# (with all greeks) lives in stocks_shared.black_scholes.
+bs_option_price = bs_price
 
 
 def estimate_option_history(price_history, opt_type: str, strike, expiration_str: str,
