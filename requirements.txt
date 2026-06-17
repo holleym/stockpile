@@ -1,0 +1,11 @@
+streamlit
+yfinance
+pandas
+numpy
+lxml
+tabulate
+altair
+plotly
+schwab-py
+moomoo-api
+-e ./shared
